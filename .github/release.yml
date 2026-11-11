@@ -1,0 +1,12 @@
+changelog:
+  categories:
+    - title: 🚀 기능
+      labels: [enhancement]
+    - title: ❗ 버그 수정
+      labels: [bug]
+    - title: 📐 설계
+      labels: [design]
+    - title: 🧹 작업
+      labels: [task, review]
+    - title: 기타
+      labels: ["*"]

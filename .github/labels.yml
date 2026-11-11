@@ -1,0 +1,41 @@
+# 유형
+- name: enhancement
+  color: "8250DF"
+  description: 새 기능·개선
+- name: bug
+  color: "D93F0B"
+  description: 동작 오류
+- name: design
+  color: "006B75"
+  description: 구조·모델·데이터 설계
+- name: review
+  color: "CC317C"
+  description: 검증 요청
+- name: task
+  color: "8B572A"
+  description: 환경·문서·설정
+
+# 상태
+- name: 작업전
+  color: "D4D4D4"
+  description: 아직 시작하지 않음
+- name: 작업중
+  color: "2EA44F"
+  description: 진행 중
+- name: 피드백
+  color: "F0B400"
+  description: 수정 필요
+- name: 담당자확인(대기)
+  color: "5BC0DE"
+  description: 담당자 확인 대기 중
+- name: 보류
+  color: "949494"
+  description: 보류됨
+- name: 작업완료
+  color: "0969DA"
+  description: 완료됨
+
+# 기타
+- name: 긴급
+  color: "B60205"
+  description: 긴급 처리 필요
