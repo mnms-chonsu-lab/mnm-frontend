@@ -1,0 +1,14 @@
+{
+  "name": "receiver-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "tsc -p . && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mnm/ui": "*"
+  }
+}

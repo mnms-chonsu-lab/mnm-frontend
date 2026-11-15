@@ -27,6 +27,36 @@ mnm-frontend/
 
 `YYYYMMDD_#이슈번호_요약` 브랜치에서 작업하고 `develop`으로 PR을 올립니다. 자세한 규칙은 [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## 기술 스택
+
+React 18 + TypeScript + Vite, `react-router-dom`, npm workspaces. 디자인 규격은 [DESIGN.md](./DESIGN.md).
+
 ## 로컬 실행
 
-🚧 개발자가 스택 정한 뒤 작성
+```bash
+npm install
+npm run dev:farmer     # 농가 앱      http://localhost:5173
+npm run dev:receiver   # 접수자 웹    http://localhost:5174
+npm run dev:admin      # 어드민       http://localhost:5175
+npm run build          # 세 앱 모두 빌드 (apps/*/dist)
+```
+
+- 경로는 화면 ID 소문자입니다. 예) `F-S01` → `/f-s01`
+- `/screens`에서 앱의 전체 화면 목록을 볼 수 있습니다.
+- 지금은 화면과 버튼 전환만 있습니다. API 연동·상태 저장은 없습니다.
+
+## 배포 (Vercel)
+
+| 앱 | 주소 |
+|---|---|
+| 농가 앱 | https://chonsu-farmer-app.vercel.app |
+| 접수자 웹 | https://chonsu-receiver-web.vercel.app |
+| 어드민 | https://chonsu-admin.vercel.app |
+
+```bash
+npx vercel login   # 처음 한 번
+npm run deploy     # 세 앱 빌드 후 운영 주소에 배포 (Git Bash 필요)
+```
+
+- 로컬에서 빌드한 `apps/*/dist`를 올립니다. Git 푸시로 자동 배포되지 않습니다.
+- Vercel Hobby(무료) 요금제의 개인 계정 프로젝트입니다.
