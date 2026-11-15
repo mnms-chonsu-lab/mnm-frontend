@@ -49,8 +49,8 @@ npm run build          # 세 앱 모두 빌드 (apps/*/dist)
 
 | 앱 | 주소 |
 |---|---|
-| 농가 앱 | https://chonsu-farmer-app.vercel.app |
-| 접수자 웹 | https://chonsu-receiver-web.vercel.app |
+| 농가 앱 | https://chonsu-farmer.vercel.app |
+| 접수자 웹 | https://chonsu-receiver.vercel.app |
 | 어드민 | https://chonsu-admin.vercel.app |
 
 ```bash
@@ -58,5 +58,6 @@ npx vercel login   # 처음 한 번
 npm run deploy     # 세 앱 빌드 후 운영 주소에 배포 (Git Bash 필요)
 ```
 
-- 로컬에서 빌드한 `apps/*/dist`를 올립니다. Git 푸시로 자동 배포되지 않습니다.
+- `develop`에 푸시(머지)되면 GitHub Actions가 자동으로 배포합니다. 레포 Secrets에 `VERCEL_TOKEN`이 필요합니다.
+- 위 명령은 로컬 작업 폴더의 코드를 그대로 올립니다. 평소에는 자동 배포를 씁니다.
 - Vercel Hobby(무료) 요금제의 개인 계정 프로젝트입니다.

@@ -39,4 +39,4 @@
 - `main`, `develop`에 직접 push 금지. 반드시 PR을 거칩니다.
 - PR은 승인 1명 이상 받고 머지합니다.
 - force push를 하지 않습니다.
-- CI 워크플로는 아직 없습니다. 스택이 정해진 뒤 추가합니다.
+- CI(`.github/workflows/ci.yml`): PR은 타입 검사·빌드, `develop` 푸시는 빌드 후 Vercel 자동 배포.

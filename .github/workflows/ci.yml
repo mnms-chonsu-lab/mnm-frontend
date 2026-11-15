@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [develop]
+
+# 같은 브랜치에서 새 실행이 오면 이전 실행을 취소한다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # PR: 타입 검사 + 세 앱 빌드
+      - if: github.event_name == 'pull_request'
+        run: npm run build
+      # develop 푸시: 빌드 후 Vercel 배포 (레포 Secrets의 VERCEL_TOKEN 필요)
+      - if: github.event_name == 'push'
+        run: npm run deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
