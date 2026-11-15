@@ -5,7 +5,15 @@
 ## 이슈·PR 작성
 - 이슈는 `.github/ISSUE_TEMPLATE/`의 5개 템플릿 중 하나의 섹션 순서·제목 형식을 **그대로** 사용합니다. 임의로 섹션을 생략·재배치하지 않습니다.
 - PR은 `.github/pull_request_template.md`의 섹션 순서를 그대로 사용합니다.
-- PR 제목: `type(영역): 요약 (#이슈번호)`. 브랜치명: `YYYYMMDD_#이슈번호_요약`.
+- 이슈 제목: `[타입] 요약`. PR 제목: `[타입] 요약 (#이슈번호)`. 대괄호는 맨 앞 타입 하나만 씁니다.
+- 타입: `feat` / `fix` / `docs` / `chore` / `test` / `refactor` / `design` / `review`.
+- 브랜치명: `YYYYMMDD_#이슈번호_요약`.
+
+## AI 사용 표시 금지
+이슈·PR·커밋 메시지·코드 주석·문서 등 외부에 남는 모든 글에 다음을 넣지 않습니다.
+- `🤖 Generated with Claude Code` 같은 생성 도구 표시
+- `Co-Authored-By: Claude` 같은 AI 공동 작성자 줄
+- 그 밖에 AI가 작성·생성했다는 어떤 표시
 
 ## 문체
 - 짧은 문장, 개조식. 비교·결과는 표로 작성합니다.

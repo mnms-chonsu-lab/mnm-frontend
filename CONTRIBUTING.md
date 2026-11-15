@@ -4,9 +4,12 @@
 - 브랜치명: `YYYYMMDD_#이슈번호_요약` (한글 가능, 공백은 `_`)
   예) `20261112_#12_농가앱_로그인_화면`
 - 1 이슈 = 1 브랜치 = 1 PR. **develop**으로 PR을 올립니다.
-- PR 제목: `type(영역): 요약 (#이슈번호)`
-  - type: `feat` / `fix` / `docs` / `chore` / `test` / `refactor`
-  - 예) `feat(apps/farmer-app): 로그인 화면 추가 (#12)`
+- 이슈 제목: `[타입] 요약`
+  - 예) `[feat] 농가 앱 로그인 화면 추가`
+- PR 제목: `[타입] 요약 (#이슈번호)`
+  - 예) `[feat] 농가 앱 로그인 화면 추가 (#12)`
+- 타입: `feat` / `fix` / `docs` / `chore` / `test` / `refactor` / `design` / `review`
+  - 대괄호는 맨 앞 타입 하나만 씁니다. 영역(`apps/farmer-app` 등)은 본문에 적습니다.
 - PR은 squash merge만 사용하며, PR 제목이 커밋 메시지가 됩니다. 머지 후 브랜치는 자동 삭제됩니다.
 
 ## 이슈·PR 작성 규칙
@@ -36,4 +39,4 @@
 - `main`, `develop`에 직접 push 금지. 반드시 PR을 거칩니다.
 - PR은 승인 1명 이상 받고 머지합니다.
 - force push를 하지 않습니다.
-- CI 워크플로는 아직 없습니다. 스택이 정해진 뒤 추가합니다.
+- CI(`.github/workflows/ci.yml`): PR은 타입 검사·빌드, `develop` 푸시는 빌드 후 Vercel 자동 배포.

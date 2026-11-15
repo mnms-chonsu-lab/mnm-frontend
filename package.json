@@ -1,0 +1,22 @@
+{
+  "name": "mnm-frontend",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:farmer": "npm run dev -w farmer-app",
+    "dev:receiver": "npm run dev -w receiver-web",
+    "dev:admin": "npm run dev -w admin",
+    "build": "npm run build --workspaces --if-present",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
