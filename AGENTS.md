@@ -9,6 +9,12 @@
 - 타입: `feat` / `fix` / `docs` / `chore` / `test` / `refactor` / `design` / `review`.
 - 브랜치명: `YYYYMMDD_#이슈번호_요약`.
 
+## AI 사용 표시 금지
+이슈·PR·커밋 메시지·코드 주석·문서 등 외부에 남는 모든 글에 다음을 넣지 않습니다.
+- `🤖 Generated with Claude Code` 같은 생성 도구 표시
+- `Co-Authored-By: Claude` 같은 AI 공동 작성자 줄
+- 그 밖에 AI가 작성·생성했다는 어떤 표시
+
 ## 문체
 - 짧은 문장, 개조식. 비교·결과는 표로 작성합니다.
 - 파일 경로·함수·환경변수·API는 백틱으로 표기합니다.
