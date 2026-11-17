@@ -7,7 +7,7 @@
   --btn-h: 44px; --gap: 12px;
 }
 /* 농가 앱: 본문 19px, 주 버튼 64px. 글자 크기 단계는 html font-size만 바꾼다(전부 rem) */
-html { font-size: 15px; }
+html { font-size: 16px; }
 html.farmer { font-size: 19px; --btn-h: 64px; --gap: 14px; }
 
 * { box-sizing: border-box; }
@@ -30,6 +30,7 @@ a { color: var(--p60); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row > * { flex: 1 1 0; min-width: 0; }
 .row > .pill, .row > .more { flex: 0 0 auto; }
+.row > .h { flex: 0 0 auto; white-space: nowrap; } /* 전화번호가 줄바꿈되지 않게 */
 .more { min-width: 48px; min-height: 48px; display: flex; align-items: center; justify-content: center; }
 .col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 
@@ -105,6 +106,7 @@ a { color: var(--p60); }
 .hdr .tt { flex: 1; padding-left: 8px; font-weight: 700; }
 .hdr button { min-width: 52px; min-height: 48px; padding: 0 8px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); font-size: 0.8rem; }
 .hdr .bk { border: 0; font-size: 1.6rem; }
+.hdr button.on { background: var(--p50); border-color: var(--p50); color: #fff; font-weight: 700; }
 .body { flex: 1; display: flex; flex-direction: column; gap: var(--gap); padding: 18px; }
 .foot { position: sticky; bottom: 0; z-index: 5; background: var(--g0); border-top: 1px solid var(--g10); }
 .fix { padding: 8px 18px; display: flex; }
@@ -126,7 +128,8 @@ a { color: var(--p60); }
 .gnb { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; padding: 8px 16px; background: var(--g0); border-bottom: 1px solid var(--g10); }
 .gnb .logo { font-weight: 700; font-size: 1.1rem; }
 .gnb nav { display: flex; gap: 4px; overflow-x: auto; }
-.gnb .right { margin-left: auto; }
+.gnb .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.gnb .fz { min-height: 40px; padding: 0 10px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); color: var(--g90); font-size: 0.85rem; }
 .gnb nav a, .side nav a { padding: 8px 12px; border-radius: 8px; color: var(--g70); text-decoration: none; white-space: nowrap; }
 .gnb nav a.active, .side nav a.active { background: var(--p5); color: var(--p60); font-weight: 700; }
 .pad { padding: 20px; max-width: 1200px; width: 100%; margin: 0 auto; }
@@ -162,6 +165,25 @@ a { color: var(--p60); }
   .mic { animation: pulse 1.6s infinite; }
 }
 @keyframes pulse { 50% { border-color: var(--p20); } }
+
+/* ---------- 선명한 화면(고대비, 농가 앱): 검은 바탕·흰 글자·노란 강조. 디자인 가이드 hc-* 토큰 ---------- */
+html.hc {
+  --p5: #000; --p10: #000; --p20: #fff; --p50: #ffd400; --p60: #ffd400; --p70: #ffd400;
+  --g0: #000; --g5: #000; --g10: #fff; --g20: #fff; --g50: #fff; --g70: #fff; --g90: #fff;
+  --d50: #ff6a4d; --d60: #ff6a4d; --d5: #000; --w50: #ffd400; --w5: #000;
+  --s50: #5be37a; --s5: #000; --i50: #fff; --i5: #000;
+}
+/* 노랑·주황 바탕 위 글자는 검게 */
+html.hc :is(.btn.p, .btn.d, .tile.p, .tile.d, .chips .on, .hdr button.on, .badge),
+html.hc :is(.tile.p, .tile.d) small { color: #000; }
+/* 흰색 토큰(g10)을 바탕으로 쓰던 곳은 검은 바탕 + 흰 테두리 */
+html.hc :is(.btn.t, .info.g) { background: #000; border: 2px solid #fff; }
+html.hc :is(.card, .opt, .route, .item, .kpi, .tblwrap, .input, .info, .sheet, .modal) { border: 2px solid #fff; }
+html.hc .route.d { border-color: var(--d50); }
+html.hc .opt.sel, html.hc .item.on { border-color: var(--p50); }
+html.hc .pic { background: #000; border: 2px dashed #fff; }
+html.hc .pic span:last-child { background: #000; }
+html.hc .mast { background: #000; border-bottom: 2px solid #fff; }
 /* 웹 화면을 휴대폰 폭으로 볼 때: 가로 묶음을 세로로 쌓는다 (농가 앱은 2열 버튼 유지) */
 @media (max-width: 600px) {
   html:not(.farmer) .row { flex-direction: column; align-items: stretch; }

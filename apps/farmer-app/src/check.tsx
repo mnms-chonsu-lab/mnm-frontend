@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Btn, Card, Done, H, Info, KV, Mic, Muted, Opt, P, Phone, Pic, Pill, RouteCard, Row, Steps, useSearchParams } from '@mnm/ui';
+import { useState, type ReactNode } from 'react';
+import { Btn, Card, CopyBtn, Done, H, Info, KV, Mic, Muted, Opt, P, Phone, Pic, Pill, RouteCard, Row, Steps, useSearchParams } from '@mnm/ui';
 import { CowList } from './home';
 
 /** 소 상태 확인 흐름 공통 틀 */
@@ -184,15 +184,38 @@ export const FS14 = () => (
 export const CallNumber = () => (
   <Row>
     <H>1588-9060</H>
-    <Btn v="s">번호 복사</Btn>
+    <CopyBtn text="1588-9060">번호 복사</CopyBtn>
   </Row>
 );
+
+/** [전화 걸기]. 통화 앱이 열리지 않으면(PC·일부 인앱 브라우저) 안내를 띄운다 (SOS-TEL-NA) */
+export function CallBtn({ children = '전화 걸기' }: { children?: ReactNode }) {
+  const [na, setNa] = useState(false);
+  // 통화 앱이 열리면 이 화면이 가려진다(blur·visibilitychange). 1.5초 안에 안 가려지면 안 열린 것으로 본다
+  const watch = () => {
+    let left = false;
+    const leave = () => (left = true);
+    window.addEventListener('blur', leave, { once: true });
+    document.addEventListener('visibilitychange', leave, { once: true });
+    setTimeout(() => {
+      window.removeEventListener('blur', leave);
+      document.removeEventListener('visibilitychange', leave);
+      setNa(!left);
+    }, 1500);
+  };
+  return (
+    <>
+      <Btn v="d" href="tel:15889060" onClick={watch}>{children}</Btn>
+      {na && <div role="alert"><Info tone="w">이 화면에서는 바로 전화가 안 돼요. 휴대폰으로 1588-9060에 전화해 주세요.</Info></div>}
+    </>
+  );
+}
 
 export const FS14P = () => (
   <Check title="전화로 신고">
     <H center>이제 <span className="red">전화로 신고</span>해 주세요</H>
     <CallNumber />
-    <Btn v="d" href="tel:15889060">전화 걸기</Btn>
+    <CallBtn />
     <Btn v="s" to="/f-e04">통화할 때 말할 내용 보기</Btn>
     <Info tone="ok"><b>홍성축협 방역팀</b>에도 기록을 보냈어요</Info>
     <NowDo lines={SOP.slice(0, 2)} />

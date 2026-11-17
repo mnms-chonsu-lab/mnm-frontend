@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Btn, Card, Chips, H, Info, Input, Keypad, KV, Modal, P, Phone, Row, Sheet } from '@mnm/ui';
-import { CallNumber } from './check';
+import { Btn, Card, Chips, H, Info, Input, Keypad, KV, Modal, P, Phone, Row, Sheet, useNavigate } from '@mnm/ui';
+import { CallBtn, CallNumber } from './check';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
 const Popup = ({ title, banner, children }: { title: string; banner?: string; children: ReactNode }) => (
@@ -9,16 +9,20 @@ const Popup = ({ title, banner, children }: { title: string; banner?: string; ch
   </Phone>
 );
 
-export const FP01 = () => (
-  <Popup title="홈">
-    <H>바로 신고</H>
-    <P>가축질병 신고 전화 (24시간)</P>
-    <CallNumber />
-    <Btn v="d" href="tel:15889060">전화 걸기</Btn>
-    <Btn v="s" to="/f-s12">오늘 기록도 함께 보내기</Btn>
-    <Btn v="t" to={-1}>닫기</Btn>
-  </Popup>
-);
+export function FP01() {
+  const nav = useNavigate();
+  return (
+    <Popup title="홈">
+      <H>바로 신고</H>
+      <P>가축질병 신고 전화 (24시간)</P>
+      <CallNumber />
+      <CallBtn />
+      {/* 누르는 순간 인터넷이 없으면 기록 대신 "신고할 때 말할 내용"으로 (SOS-OFFLINE) */}
+      <Btn v="s" onClick={() => nav(navigator.onLine ? '/f-s12' : '/f-e04')}>오늘 기록도 함께 보내기</Btn>
+      <Btn v="t" to={-1}>닫기</Btn>
+    </Popup>
+  );
+}
 
 export const FP02 = () => (
   <Popup title="신고서 초안">
@@ -114,7 +118,7 @@ export const FE02 = () => (
 export const FE04 = () => (
   <Phone title="신고할 때 말할 내용" report={false} banner={OFFLINE}>
     <H>먼저 <span className="red">전화로</span><br />신고해 주세요</H>
-    <Btn v="d" href="tel:15889060">전화 걸기 1588-9060</Btn>
+    <CallBtn>전화 걸기 1588-9060</CallBtn>
     <KV rows={[['농장', '김한우 농장 · 충남 홍성군 ○○읍'], ['소', '한우 1234번 (전체 42두)'], ['본 것', '침 흘림, 사료 남김'], ['처음 본 때', '11월 2일 아침'], ['신고자', '김한우 010-****-0937']]} />
     <Info tone="w">기록과 사진은 <b>보내기 대기 중</b>이에요. 인터넷이 연결되면 바로 보내 드릴게요.</Info>
     <Btn v="t" to="/f-s01">처음으로</Btn>
