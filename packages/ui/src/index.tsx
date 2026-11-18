@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import './ui.css';
@@ -49,13 +49,33 @@ export const Pic = ({ to, oval, children }: Kids & { to?: To; oval?: boolean }) 
 );
 
 /** v: p 주 버튼 / s 보조 / t 3순위 / d 신고 */
-export function Btn({ v = 'p', to, href, children }: Kids & { v?: 'p' | 's' | 't' | 'd'; to?: To; href?: string }) {
+export function Btn({ v = 'p', to, href, onClick, children }: Kids & { v?: 'p' | 's' | 't' | 'd'; to?: To; href?: string; onClick?: () => void }) {
   const go = useGo();
   return href ? (
-    <a className={'btn ' + v} href={href}>{children}</a>
+    <a className={'btn ' + v} href={href} onClick={onClick}>{children}</a>
   ) : (
-    <button type="button" className={'btn ' + v} onClick={go(to)}>{children}</button>
+    <button type="button" className={'btn ' + v} onClick={onClick ?? go(to)}>{children}</button>
   );
+}
+
+/** 누르면 text를 클립보드에 복사한다. 복사가 막힌 환경(http 등)이면 그렇다고 알린다 */
+export function CopyBtn({ text, children }: Kids & { text: string }) {
+  const [msg, setMsg] = useState<string>();
+  const copy = () =>
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .catch(() => {
+        // 클립보드 API가 막힌 곳(인앱 브라우저·권한 거부)은 예전 방식으로 한 번 더
+        const t = document.createElement('textarea');
+        t.value = text;
+        document.body.append(t);
+        t.select();
+        const ok = document.execCommand('copy');
+        t.remove();
+        if (!ok) throw new Error('copy');
+      })
+      .then(() => setMsg('복사했어요'), () => setMsg('복사가 안 돼요'));
+  return <Btn v="s" onClick={copy}><span aria-live="polite">{msg ?? children}</span></Btn>;
 }
 
 export const Tile = ({ title, sub, v = 'p', to }: { title: string; sub: string; v?: 'p' | 's' | 'd'; to?: To }) => (
@@ -98,12 +118,14 @@ export const Dots = ({ n, on }: { n: number; on: number }) => (
 export const Input = ({ label, rows }: { label: string; rows?: number }) =>
   rows ? <textarea className="input" rows={rows} placeholder={label} aria-label={label} /> : <input className="input" placeholder={label} aria-label={label} />;
 
-export function Chips({ items, on = -1 }: { items: string[]; on?: number }) {
-  const [sel, setSel] = useState(on);
+/** onPick이 있으면 선택 값은 부모가 on으로 관리한다 */
+export function Chips({ items, on = -1, onPick }: { items: string[]; on?: number; onPick?: (i: number) => void }) {
+  const [own, setOwn] = useState(on);
+  const sel = onPick ? on : own;
   return (
     <div className="chips">
       {items.map((x, i) => (
-        <button type="button" key={x} className={i === sel ? 'on' : ''} aria-pressed={i === sel} onClick={() => setSel(i)}>{x}</button>
+        <button type="button" key={x} className={i === sel ? 'on' : ''} aria-pressed={i === sel} onClick={() => (onPick ?? setOwn)(i)}>{x}</button>
       ))}
     </div>
   );
@@ -115,9 +137,96 @@ export const Keypad = () => (
   </div>
 );
 
+/* ---------- 화면 설정: 글자 크기·선명한 화면·소리 안내 ---------- */
+type Prefs = { font?: number; hc?: boolean; speak?: boolean };
+const KEY = 'mnm-prefs';
+const isFarmer = () => document.documentElement.classList.contains('farmer');
+/** 글자 크기 단계 [이름, px]. 농가 앱 5단계, 접수자 웹 3단계. 단계를 바꾸면 html font-size만 바뀐다(전부 rem) */
+const fontSteps = (): [string, number][] =>
+  isFarmer() ? [['작게', 16], ['보통', 19], ['조금 크게', 21], ['크게', 23], ['가장 크게', 26]] : [['보통', 16], ['크게', 18], ['가장 크게', 20]];
+const fontStep = (px?: number) => {
+  const steps = fontSteps();
+  return Math.max(0, steps.findIndex(([, v]) => v === (px ?? steps[isFarmer() ? 1 : 0][1])));
+};
+
+// shortcut: 기기(localStorage)에만 저장, user_settings API(FARM-20) 연동 시 서버에 저장해 다른 기기에서도 유지한다
+let prefs: Prefs = (() => {
+  try {
+    return (JSON.parse(localStorage.getItem(KEY) ?? '{}') ?? {}) as Prefs;
+  } catch {
+    return {};
+  }
+})();
+const subs = new Set<() => void>();
+function applyPrefs() {
+  const el = document.documentElement;
+  el.style.fontSize = prefs.font ? prefs.font + 'px' : '';
+  el.classList.toggle('hc', !!prefs.hc && isFarmer());
+}
+applyPrefs();
+
+export function setPrefs(p: Prefs) {
+  prefs = { ...prefs, ...p };
+  try {
+    localStorage.setItem(KEY, JSON.stringify(prefs));
+  } catch {
+    // 저장이 막힌 브라우저(사생활 보호 모드 등)에서도 지금 화면에는 적용한다
+  }
+  applyPrefs();
+  subs.forEach((f) => f());
+}
+export const usePrefs = () => useSyncExternalStore((f) => (subs.add(f), () => void subs.delete(f)), () => prefs);
+
+/* 소리 안내: 브라우저 음성(Web Speech). 일부 인앱 브라우저·WebView에는 없다 */
+export const canSpeak = typeof speechSynthesis !== 'undefined';
+let screenText = () => '';
+function speak() {
+  if (!canSpeak) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(screenText());
+  u.lang = 'ko-KR';
+  speechSynthesis.speak(u);
+}
+const toggleSpeak = () => {
+  setPrefs({ speak: !prefs.speak });
+  if (prefs.speak) speak();
+  else if (canSpeak) speechSynthesis.cancel();
+};
+
+/** 헤더 [가] 버튼. 누를 때마다 다음 글자 크기 */
+export function FontBtn() {
+  const p = usePrefs();
+  const steps = fontSteps();
+  const i = fontStep(p.font);
+  return (
+    <button type="button" className="fz" aria-label={`글자 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
+      가 {steps[i][0]}
+    </button>
+  );
+}
+
+const Switch = ({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) => (
+  <button type="button" className="kvr tap" aria-pressed={on} onClick={onClick}>
+    <b>{label}</b>
+    <span>{on ? '켬' : '끔'} ›</span>
+  </button>
+);
+
+/** 화면 설정 카드 (F-S17): 글자 크기·선명한 화면·소리 안내 */
+export function PrefsCard() {
+  const p = usePrefs();
+  const steps = fontSteps();
+  return (
+    <div className="card">
+      <b>글자 크기</b>
+      <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
+      <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
+      {canSpeak && <Switch label="소리 안내" on={!!p.speak} onClick={toggleSpeak} />}
+    </div>
+  );
+}
+
 /* ---------- 농가 앱 틀 ---------- */
-const FONT = ['작게', '보통', '조금 크게', '크게', '가장 크게'];
-const FONT_PX = [16, 19, 21, 23, 26];
 const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알림', '/f-s16'], ['내 정보', '/f-s17']];
 
 /**
@@ -126,21 +235,21 @@ const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알
  */
 export function Phone({ title, back = true, tab, report = true, banner, say, children }: Kids & { title: string; back?: boolean; tab?: string; report?: boolean; banner?: string; say?: string }) {
   const go = useGo();
-  const [step, setStep] = useState(() => Math.max(0, FONT_PX.indexOf(parseInt(document.documentElement.style.fontSize) || 19)));
-  const bigger = () => {
-    const next = (step + 1) % FONT_PX.length;
-    document.documentElement.style.fontSize = FONT_PX[next] + 'px';
-    setStep(next);
-  };
+  const p = usePrefs();
+  useEffect(() => {
+    // shortcut: 소리 안내 문구(say)가 없으면 화면 제목을 읽는다, 화면별 문구 연결 시 say를 채운다
+    screenText = () => say ?? document.querySelector('.h')?.textContent ?? title;
+    // 켜 둔 동안 화면이 바뀌면 자동으로 읽는다. 켜고 끌 때 다시 읽지 않도록 훅 값이 아닌 모듈 값을 본다
+    if (prefs.speak) speak();
+  }, [say, title]);
   return (
     <div className="phone">
       {banner && <div className="mast w">{banner}</div>}
       <header className="hdr">
         {back && <button type="button" className="bk" aria-label="뒤로" onClick={go(-1)}>‹</button>}
         <span className="tt">{title}</span>
-        <button type="button" aria-label={`글자 크기: ${FONT[step]}`} onClick={bigger}>가 {FONT[step]}</button>
-        {/* shortcut: 소리 안내 문구(say)가 없으면 화면 제목을 읽는다, 화면별 문구 연결 시 say를 채운다 */}
-        <button type="button" onClick={() => speechSynthesis.speak(new SpeechSynthesisUtterance(say ?? document.querySelector('.h')?.textContent ?? title))}>듣기</button>
+        <FontBtn />
+        {canSpeak && <button type="button" className={p.speak ? 'on' : ''} aria-pressed={!!p.speak} onClick={toggleSpeak}>듣기</button>}
       </header>
       <main className="body">{children}</main>
       {(report || tab) && (

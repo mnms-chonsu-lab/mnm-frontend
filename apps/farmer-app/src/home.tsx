@@ -1,4 +1,4 @@
-import { Btn, Card, Chips, H, Info, Input, KV, Link, Muted, Opt, P, Phone, Pill, Row, Tile } from '@mnm/ui';
+import { Btn, Card, H, Info, Input, KV, Link, Opt, P, Phone, Pill, PrefsCard, Row, Tile } from '@mnm/ui';
 
 const COWS: [string, string][] = [
   ['1234번', '한우 암 · 4세 · 2번 축사'],
@@ -71,7 +71,7 @@ export const FS16 = () => (
 );
 
 export const FS17 = () => (
-  <Phone title="내 정보" back={false} tab="내 정보">
+  <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글자 크기와 선명한 화면을 바꿀 수 있어요.">
     <KV rows={[
       ['농장', '김한우 농장'],
       ['주소', '충남 홍성군 ○○읍'],
@@ -79,12 +79,7 @@ export const FS17 = () => (
       ['담당 축협', '홍성축협'],
       ['연락처', '010-****-0937 ›', false, '/f-p06'],
     ]} />
-    <Card>
-      <b>글자 크기</b>
-      <Chips items={['작게', '보통', '조금 크게', '크게', '가장 크게']} on={1} />
-      <span><b>선명한 화면</b> <Muted>끔 ›</Muted></span>
-      <span><b>소리 안내</b> <Muted>켬 ›</Muted></span>
-    </Card>
+    <PrefsCard />
     <Card>
       <b>개인정보</b>
       <span>기록은 내가 [보낼게요]를 누른 곳에만 전달돼요.</span>

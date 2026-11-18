@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Btn, Card, Center, Chart, Chips, Col, Cols, Gnb, H, Info, Input, Item, Kpis, KV, Mast, Modal, Muted, P, Pad, Pic, Pill, Row, Steps, Tbl, mount, type Screen } from '@mnm/ui';
+import { Btn, Card, Center, Chart, Chips, Col, Cols, FontBtn, Gnb, H, Info, Input, Item, Kpis, KV, Mast, Modal, Muted, P, Pad, Pic, Pill, Row, Steps, Tbl, mount, type Screen } from '@mnm/ui';
 
 const NOTICE = '접수자 전용 · 농가가 [보낼게요]로 승인한 기록만 표시됩니다';
 const MENU: [string, string][] = [['접수된 기록 2', '/r-s02'], ['관할 농가', '/r-s03'], ['공식 지침', '/r-s04'], ['통계', '/r-s05']];
@@ -8,7 +8,7 @@ const MENU: [string, string][] = [['접수된 기록 2', '/r-s02'], ['관할 농
 const Page = ({ who = '홍성축협 방역팀 · 박서연', children }: { who?: string; children: ReactNode }) => (
   <>
     <Mast>{NOTICE}</Mast>
-    <Gnb brand="촌수의사" items={MENU} right={who} />
+    <Gnb brand="촌수의사" items={MENU} right={<>{who}<FontBtn /></>} />
     {children}
   </>
 );
