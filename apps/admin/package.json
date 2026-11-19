@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mnm/ui": "*"
+    "@mnm/ui": "*",
+    "@mnm/api-client": "*"
   }
 }

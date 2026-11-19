@@ -1,4 +1,6 @@
-import { Btn, Card, H, Info, Input, KV, Link, Opt, P, Phone, Pill, PrefsCard, Row, Tile } from '@mnm/ui';
+import { useState } from 'react';
+import { farmerLogin, logout } from '@mnm/api-client';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Opt, P, Phone, Pill, PrefsCard, Row, Tile, useAuthForm, useGoNext, useNavigate } from '@mnm/ui';
 
 const COWS: [string, string][] = [
   ['1234번', '한우 암 · 4세 · 2번 축사'],
@@ -12,23 +14,39 @@ export const CowList = ({ to }: { to: string }) => (
   </>
 );
 
-export const FS00 = () => (
-  <Phone title="촌수의사" back={false} say="농장식별번호와 휴대폰 번호를 넣어 주세요.">
-    <H>농장식별번호로<br /><em>시작해요</em></H>
-    <Input label="농장식별번호 6자리" />
-    <Input label="휴대폰 번호 010-0000-0000" />
-    <Card>
-      <label><input type="checkbox" defaultChecked /> <b>전체 동의 (필수)</b></label>
-      {['개인정보 수집·이용 동의 (필수)', '기록 전달 동의 (필수)', '처리 위탁 동의 (필수)'].map((x) => (
-        <Row key={x}>
-          <label><input type="checkbox" defaultChecked /> {x}</label>
-          <Link className="more" to="/f-p03">보기</Link>
-        </Row>
-      ))}
-    </Card>
-    <Btn to="/f-s01">시작하기</Btn>
-  </Phone>
-);
+const CONSENTS = ['개인정보 수집·이용 동의 (필수)', '기록 전달 동의 (필수)', '처리 위탁 동의 (필수)'];
+
+export function FS00() {
+  const goNext = useGoNext('/f-s01');
+  const [farmNo, setFarmNo] = useState('');
+  const [phone, setPhone] = useState('');
+  const [agree, setAgree] = useState(CONSENTS.map(() => false));
+  const all = agree.every(Boolean);
+  const { submit, err, busy } = useAuthForm(async () => {
+    await farmerLogin(farmNo, phone);
+    goNext();
+  });
+  return (
+    <Phone title="촌수의사" back={false} say="농장식별번호와 휴대폰 번호를 넣어 주세요.">
+      <Form onSubmit={submit}>
+        <H>농장식별번호로<br /><em>시작해요</em></H>
+        <Input label="농장식별번호 6자리" inputMode="numeric" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(e.target.value)} err={err.farm_no} />
+        <Input label="휴대폰 번호 010-0000-0000" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
+        <Err>{err._}</Err>
+        <Card>
+          <label><input type="checkbox" checked={all} onChange={() => setAgree(CONSENTS.map(() => !all))} /> <b>전체 동의 (필수)</b></label>
+          {CONSENTS.map((x, i) => (
+            <Row key={x}>
+              <label><input type="checkbox" checked={agree[i]} onChange={() => setAgree(agree.map((v, j) => (j === i ? !v : v)))} /> {x}</label>
+              <Link className="more" to="/f-p03">보기</Link>
+            </Row>
+          ))}
+        </Card>
+        <Btn submit disabled={!all || busy}>시작하기</Btn>
+      </Form>
+    </Phone>
+  );
+}
 
 export const FS01 = () => (
   <Phone title="촌수의사" back={false} tab="홈" report={false} say="김한우 님, 오늘 할 일이 1개 있어요. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.">
@@ -70,6 +88,11 @@ export const FS16 = () => (
   </Phone>
 );
 
+function LogoutBtn() {
+  const nav = useNavigate();
+  return <Btn v="t" onClick={() => (logout(), nav('/f-s00'))}>로그아웃</Btn>;
+}
+
 export const FS17 = () => (
   <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글자 크기와 선명한 화면을 바꿀 수 있어요.">
     <KV rows={[
@@ -84,7 +107,7 @@ export const FS17 = () => (
       <b>개인정보</b>
       <span>기록은 내가 [보낼게요]를 누른 곳에만 전달돼요.</span>
       <Btn v="s" to="/f-s17s">보낸 기록 1건 ›</Btn>
-      <Btn v="t" to="/f-s00">로그아웃</Btn>
+      <LogoutBtn />
     </Card>
   </Phone>
 );

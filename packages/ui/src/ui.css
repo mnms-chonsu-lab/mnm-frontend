@@ -94,6 +94,10 @@ a { color: var(--p60); }
 .pic span:last-child { position: relative; background: rgba(255, 255, 255, 0.85); padding: 0 6px; border-radius: 4px; }
 
 .input { width: 100%; min-height: var(--btn-h); padding: 10px 14px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); }
+.input[aria-invalid='true'] { border: 2px solid var(--d50); }
+.err { color: var(--d50); font-size: 0.9rem; }
+.form { display: contents; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button, .chips span { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--g20); background: var(--g0); }
 .chips .on { background: var(--p50); border-color: var(--p50); color: #fff; font-weight: 700; }
@@ -181,6 +185,7 @@ html.hc :is(.btn.t, .info.g) { background: #000; border: 2px solid #fff; }
 html.hc :is(.card, .opt, .route, .item, .kpi, .tblwrap, .input, .info, .sheet, .modal) { border: 2px solid #fff; }
 html.hc .route.d { border-color: var(--d50); }
 html.hc .opt.sel, html.hc .item.on { border-color: var(--p50); }
+html.hc .input[aria-invalid='true'] { border-color: var(--d50); }
 html.hc .pic { background: #000; border: 2px dashed #fff; }
 html.hc .pic span:last-child { background: #000; }
 html.hc .mast { background: #000; border-bottom: 2px solid #fff; }
