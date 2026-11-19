@@ -41,6 +41,7 @@ npm run dev:admin      # 어드민       http://localhost:5175
 npm run build          # 세 앱 모두 빌드 (apps/*/dist)
 ```
 
+- API에 붙이려면 루트에 `.env`를 만들고 `VITE_API_BASE_URL`(백엔드 주소)을 채웁니다 (`.env.example` 참고). 백엔드 `CORS_ALLOWED_ORIGINS`에 앱 주소가 있어야 합니다. 비워 두면 로그인 없이 화면만 열립니다.
 - 경로는 화면 ID 소문자입니다. 예) `F-S01` → `/f-s01`
 - `/screens`에서 앱의 전체 화면 목록을 볼 수 있습니다.
 - 지금은 화면과 버튼 전환만 있습니다. API 연동·상태 저장은 없습니다.

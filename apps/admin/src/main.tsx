@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Btn, Card, Chips, Gnb, H, Info, Input, Kpis, KV, Modal, Muted, P, Pill, Row, Side, Tbl, mount, useSearchParams, type Screen } from '@mnm/ui';
+import { logout } from '@mnm/api-client';
+import { Btn, Card, Chips, Gnb, H, Info, Input, Kpis, KV, Link, Modal, Muted, P, Pill, Row, Side, Tbl, WebLogin, WebPassword, mount, useSearchParams, type Screen } from '@mnm/ui';
 
 const MENU: [string, string][] = [
   ['대시보드', '/a-s01'], ['사용자', '/a-s02'], ['접수 기관', '/a-s09'], ['신고·전달', '/a-s04'],
@@ -9,7 +10,7 @@ const MENU: [string, string][] = [
 /** 어드민 공통 틀: 상단 바 + 좌측 메뉴 */
 const Page = ({ children }: { children: ReactNode }) => (
   <>
-    <Gnb brand="촌수의사 어드민" right="운영자 · 로그아웃" />
+    <Gnb brand="촌수의사 어드민" right={<>운영자 · <Link to="/r-s01" onClick={logout}>로그아웃</Link></>} />
     <Side items={MENU}>{children}</Side>
   </>
 );
@@ -273,6 +274,8 @@ const NotFound = () => (
 
 // 화면 ID는 화면설계서 기준. 경로는 ID 소문자(/a-s01)
 const screens: Screen[] = [
+  ['R-S01', '로그인 (접수자 웹과 같은 화면)', () => <WebLogin role="admin" home="/a-s01" sub="어드민" />],
+  ['R-S06', '비밀번호 바꾸기 (첫 로그인)', () => <WebPassword home="/a-s01" />],
   ['A-S01', '운영 대시보드', AS01],
   ['A-S02', '사용자 관리 (목록)', AS02],
   ['A-P01', '[팝업] 계정 만들기 · 임시 비밀번호', AP01Route],
@@ -287,4 +290,4 @@ const screens: Screen[] = [
   ['404', '없는 화면', NotFound],
 ];
 
-mount(screens, 'A-S01', '404');
+mount(screens, 'A-S01', '404', { login: 'R-S01', home: 'A-S01', password: 'R-S06', open: ['404'] });

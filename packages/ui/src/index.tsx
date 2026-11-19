@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ComponentType, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ApiError, apiReady, changePassword, getSession, login, logout, setOnExpired, type Role } from '@mnm/api-client';
 import './ui.css';
 
 export { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -49,12 +50,12 @@ export const Pic = ({ to, oval, children }: Kids & { to?: To; oval?: boolean }) 
 );
 
 /** v: p 주 버튼 / s 보조 / t 3순위 / d 신고 */
-export function Btn({ v = 'p', to, href, onClick, children }: Kids & { v?: 'p' | 's' | 't' | 'd'; to?: To; href?: string; onClick?: () => void }) {
+export function Btn({ v = 'p', to, href, onClick, submit, disabled, children }: Kids & { v?: 'p' | 's' | 't' | 'd'; to?: To; href?: string; onClick?: () => void; submit?: boolean; disabled?: boolean }) {
   const go = useGo();
   return href ? (
     <a className={'btn ' + v} href={href} onClick={onClick}>{children}</a>
   ) : (
-    <button type="button" className={'btn ' + v} onClick={onClick ?? go(to)}>{children}</button>
+    <button type={submit ? 'submit' : 'button'} className={'btn ' + v} disabled={disabled} onClick={onClick ?? go(to)}>{children}</button>
   );
 }
 
@@ -115,8 +116,24 @@ export const Dots = ({ n, on }: { n: number; on: number }) => (
   </div>
 );
 
-export const Input = ({ label, rows }: { label: string; rows?: number }) =>
-  rows ? <textarea className="input" rows={rows} placeholder={label} aria-label={label} /> : <input className="input" placeholder={label} aria-label={label} />;
+/** 빨간 안내 문구. 내용이 없으면 그리지 않는다 */
+export const Err = ({ children }: Kids) => (children ? <span className="err" role="alert">{children}</span> : null);
+
+/** err: 칸 아래 빨간 안내 (VALID-422 칸별 문구 등). 나머지 속성은 input에 그대로 */
+export const Input = ({ label, rows, err, ...p }: { label: string; rows?: number; err?: string } & InputHTMLAttributes<HTMLInputElement>) =>
+  rows ? (
+    <textarea className="input" rows={rows} placeholder={label} aria-label={label} />
+  ) : (
+    <>
+      <input className="input" placeholder={label} aria-label={label} aria-invalid={err ? true : undefined} {...p} />
+      <Err>{err}</Err>
+    </>
+  );
+
+/** 엔터로도 보내지는 폼. 레이아웃은 감싸지 않은 것과 같다 */
+export const Form = ({ onSubmit, children }: Kids & { onSubmit: (e: FormEvent) => void }) => (
+  <form className="form" onSubmit={onSubmit} noValidate>{children}</form>
+);
 
 /** onPick이 있으면 선택 값은 부모가 on으로 관리한다 */
 export function Chips({ items, on = -1, onPick }: { items: string[]; on?: number; onPick?: (i: number) => void }) {
@@ -362,6 +379,122 @@ export const Chart = ({ values }: { values: number[] }) => (
   </div>
 );
 
+/* ---------- 로그인 ---------- */
+/** 로그인 후 갈 곳: ?next=(로그인 화면으로 오기 전에 보던 화면) 또는 home */
+export function useGoNext(home: string) {
+  const nav = useNavigate();
+  const next = useSearchParams()[0].get('next');
+  return () => nav(next?.startsWith('/') && !next.startsWith('//') ? next : home, { replace: true });
+}
+
+/**
+ * 로그인 폼 공통: 보내는 중·잠금·오류 문구. send에서 ApiError를 던지면 칸별 문구(err[field]) 또는 전체 문구(err._)로 보여 준다.
+ * AUTH-LOCK이면 문구 속 남은 분 동안 버튼을 막는다
+ */
+export function useAuthForm(send: () => Promise<void>, msg = (e: ApiError) => e.message) {
+  const [busy, setBusy] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [err, setErr] = useState<Record<string, string>>({});
+  const submit = async (ev: FormEvent) => {
+    ev.preventDefault();
+    setBusy(true);
+    setErr({});
+    try {
+      await send();
+    } catch (x) {
+      if (!(x instanceof ApiError)) throw x;
+      setErr(x.errors.length ? Object.fromEntries(x.errors.map((e) => [e.field, e.message])) : { _: msg(x) });
+      const m = x.code === 'AUTH-LOCK' && /(\d+)분/.exec(x.message);
+      if (m) {
+        setLocked(true);
+        setTimeout(() => setLocked(false), Number(m[1]) * 60_000);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { submit, err, busy: busy || locked };
+}
+
+const WEB_APP: Partial<Record<Role, string>> = { receiver: '접수자 웹', admin: '어드민' };
+/** 서버 message는 농가 문구라 접수자 웹·어드민 문구로 바꾼다 (오류·예외 처리 탭) */
+const webMsg = (e: ApiError) =>
+  e.code === 'AUTH-FAIL'
+    ? '아이디나 비밀번호를 다시 확인해 주세요.'
+    : e.code === 'AUTH-LOCK'
+      ? e.message.replace(/농장식별번호는.*$/, '촌수의사 운영팀에 문의하세요.')
+      : e.message + (e.status >= 500 && e.requestId ? ` (오류 번호 ${e.requestId})` : '');
+
+/** 접수자·운영자 로그인 (R-S01). 어드민도 이 화면을 쓴다. role이 다른 계정은 막는다 */
+export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: string }) {
+  const nav = useNavigate();
+  const goNext = useGoNext(home);
+  const [id, setId] = useState('');
+  const [pw, setPw] = useState('');
+  const { submit, err, busy } = useAuthForm(async () => {
+    const s = await login(id, pw);
+    if (s.role !== role) {
+      logout();
+      throw new ApiError(403, 'AUTH-403', `${s.role === 'admin' ? '운영자' : '접수자'} 계정은 ${WEB_APP[s.role]}에서 로그인해 주세요.`);
+    }
+    if (s.must_change_pw) nav('/r-s06' + location.search, { replace: true });
+    else goNext();
+  }, webMsg);
+  return (
+    <Center>
+      <Form onSubmit={submit}>
+        <H>촌수의사 <Muted>{sub}</Muted></H>
+        <Input label="아이디" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} err={err.login_id} />
+        <Input label="비밀번호" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} err={err.password} />
+        <Err>{err._}</Err>
+        <Btn submit disabled={busy}>로그인</Btn>
+        <P>계정 발급·비밀번호 초기화는 촌수의사 운영팀에 문의하세요</P>
+      </Form>
+    </Center>
+  );
+}
+
+/** 임시 비밀번호 바꾸기 (R-S06). 바꾸면 새 토큰으로 home(또는 보던 화면)으로 */
+export function WebPassword({ home }: { home: string }) {
+  const goNext = useGoNext(home);
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const { submit, err, busy } = useAuthForm(async () => {
+    // shortcut: 불일치 문구는 명세에 없어 제안값, 명세 문구가 정해지면 바꾼다
+    if (pw !== pw2) throw new ApiError(422, 'VALID-422', '', [{ field: 'confirm', message: '두 비밀번호가 달라요. 다시 넣어 주세요.' }]);
+    await changePassword(pw);
+    goNext();
+  }, webMsg);
+  return (
+    <Center>
+      <Form onSubmit={submit}>
+        <H>새 비밀번호를 정해 주세요</H>
+        <P>임시 비밀번호로 로그인했어요. 계속하려면 비밀번호를 바꿔야 해요.</P>
+        <Input label="새 비밀번호 (8자 이상, 영문·숫자)" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} err={err.new_password} />
+        <Input label="새 비밀번호 확인" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} err={err.confirm} />
+        <Err>{err._}</Err>
+        <Btn submit disabled={busy}>바꾸고 시작하기</Btn>
+      </Form>
+    </Center>
+  );
+}
+
+/** 로그인이 필요한 앱의 설정. 화면 ID로 적는다. open: 로그인 없이 여는 화면, password: 임시 비밀번호 변경 화면 */
+export type Auth = { login: string; home: string; password?: string; open: string[] };
+
+const toLogin = (auth: Auth, from: string) => path(auth.login) + '?next=' + encodeURIComponent(from);
+
+function Guard({ id, auth, children }: Kids & { id: string; auth: Auth }) {
+  const loc = useLocation();
+  const s = getSession();
+  if (id === auth.login) return s ? <Navigate to={path(auth.home)} replace /> : <>{children}</>;
+  if (auth.open.includes(id)) return <>{children}</>;
+  if (!s) return <Navigate to={toLogin(auth, loc.pathname + loc.search)} replace />;
+  // 임시 비밀번호 상태면 다른 주소로 가도 바꾸기 화면으로
+  if (s.must_change_pw && auth.password && id !== auth.password) return <Navigate to={path(auth.password)} replace />;
+  return <>{children}</>;
+}
+
 /* ---------- 앱 시작 ---------- */
 export type Screen = [id: string, name: string, C: ComponentType];
 
@@ -375,14 +508,17 @@ function ScreenIndex({ screens }: { screens: Screen[] }) {
   );
 }
 
-/** 화면 배열을 받아 화면 ID별 경로(/f-s01 등)로 라우팅한다 */
-export function mount(screens: Screen[], home: string, notFound: string) {
+/** 화면 배열을 받아 화면 ID별 경로(/f-s01 등)로 라우팅한다. auth가 있으면 로그인한 사람만 화면을 연다 */
+export function mount(screens: Screen[], home: string, notFound: string, auth?: Auth) {
   const NotFound = screens.find(([id]) => id === notFound)![2];
+  // shortcut: API 주소가 없는 빌드(화면 검토용 Vercel 배포)는 로그인 없이 모든 화면을 연다, 배포에 API 주소·CORS가 정해지면 조건을 없앤다
+  const guard = apiReady ? auth : undefined;
+  if (guard) setOnExpired(() => location.assign(toLogin(guard, location.pathname + location.search)));
   createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to={path(home)} replace />} />
-        {screens.map(([id, , C]) => <Route key={id} path={path(id)} element={<C />} />)}
+        {screens.map(([id, , C]) => <Route key={id} path={path(id)} element={guard ? <Guard id={id} auth={guard}><C /></Guard> : <C />} />)}
         <Route path="/screens" element={<ScreenIndex screens={screens} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

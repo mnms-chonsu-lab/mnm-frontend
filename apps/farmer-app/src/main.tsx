@@ -53,4 +53,5 @@ const screens: Screen[] = [
   ['F-E03', '[오류] 없는 페이지', popups.FE03],
 ];
 
-mount(screens, 'F-S00', 'F-E03');
+// 로그인 없이 여는 화면: 로그인·동의 보기, [바로 신고](전화), 오류 화면
+mount(screens, 'F-S00', 'F-E03', { login: 'F-S00', home: 'F-S01', open: ['F-P01', 'F-P03', 'F-E01', 'F-E02', 'F-E03', 'F-E04'] });

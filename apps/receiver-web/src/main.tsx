@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Btn, Card, Center, Chart, Chips, Col, Cols, FontBtn, Gnb, H, Info, Input, Item, Kpis, KV, Mast, Modal, Muted, P, Pad, Pic, Pill, Row, Steps, Tbl, mount, type Screen } from '@mnm/ui';
+import { Btn, Card, Center, Chart, Chips, Col, Cols, FontBtn, Gnb, H, Info, Input, Item, Kpis, KV, Mast, Modal, Muted, P, Pad, Pic, Pill, Row, Steps, Tbl, WebLogin, WebPassword, mount, type Screen } from '@mnm/ui';
 
 const NOTICE = '접수자 전용 · 농가가 [보낼게요]로 승인한 기록만 표시됩니다';
 const MENU: [string, string][] = [['접수된 기록 2', '/r-s02'], ['관할 농가', '/r-s03'], ['공식 지침', '/r-s04'], ['통계', '/r-s05']];
@@ -16,26 +16,14 @@ const Page = ({ who = '홍성축협 방역팀 · 박서연', children }: { who?:
 const RS01 = () => (
   <>
     <Mast>{NOTICE}</Mast>
-    <Center>
-      <H>촌수의사 <Muted>접수자 기록 보기</Muted></H>
-      <Input label="아이디" />
-      <Input label="비밀번호" />
-      <Btn to="/r-s02">로그인</Btn>
-      <P>계정 발급·비밀번호 초기화는 촌수의사 운영팀에 문의하세요</P>
-    </Center>
+    <WebLogin role="receiver" home="/r-s02" sub="접수자 기록 보기" />
   </>
 );
 
 const RS06 = () => (
   <>
     <Mast>{NOTICE}</Mast>
-    <Center>
-      <H>새 비밀번호를 정해 주세요</H>
-      <P>임시 비밀번호로 로그인했어요. 계속하려면 비밀번호를 바꿔야 해요.</P>
-      <Input label="새 비밀번호 (8자 이상, 영문·숫자)" />
-      <Input label="새 비밀번호 확인" />
-      <Btn to="/r-s02">바꾸고 시작하기</Btn>
-    </Center>
+    <WebPassword home="/r-s02" />
   </>
 );
 
@@ -272,4 +260,4 @@ const screens: Screen[] = [
   ['R-E02', '[오류] 처리 충돌 모달', RE02],
 ];
 
-mount(screens, 'R-S01', 'R-E01');
+mount(screens, 'R-S01', 'R-E01', { login: 'R-S01', home: 'R-S02', password: 'R-S06', open: ['R-E01'] });

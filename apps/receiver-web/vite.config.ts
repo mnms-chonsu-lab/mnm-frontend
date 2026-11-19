@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({ plugins: [react()] });
+// 루트 .env를 세 앱이 같이 쓴다
+export default defineConfig({ plugins: [react()], envDir: '../..' });
