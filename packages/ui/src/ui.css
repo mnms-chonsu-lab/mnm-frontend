@@ -15,7 +15,7 @@ body {
   margin: 0; background: var(--g5); color: var(--g90); line-height: 1.5; word-break: keep-all;
   font-family: 'Pretendard GOV', Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
 }
-button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--p50); outline-offset: 2px; }
 em { font-style: normal; color: var(--p50); }
@@ -64,6 +64,7 @@ a { color: var(--p60); }
 .info.w { background: var(--w5); }
 .info.g { background: var(--g10); }
 .info.ok { background: var(--s5); }
+.info.d { background: var(--d5); }
 
 .tile { min-height: 86px; padding: 14px 18px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; }
 .tile b { font-size: 1.15rem; }
@@ -96,6 +97,8 @@ a { color: var(--p60); }
 .input { width: 100%; min-height: var(--btn-h); padding: 10px 14px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); }
 .input[aria-invalid='true'] { border: 2px solid var(--d50); }
 .err { color: var(--d50); font-size: 0.9rem; }
+.fld { display: flex; flex-direction: column; gap: 4px; }
+.fld > small { color: var(--g70); font-size: 0.8rem; }
 .form { display: contents; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }

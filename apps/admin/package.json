@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mnm/ui": "*",
-    "@mnm/api-client": "*"
+    "@mnm/api-client": "*",
+    "@mnm/mocks": "*"
   }
 }
