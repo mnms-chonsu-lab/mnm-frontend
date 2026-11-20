@@ -60,5 +60,9 @@ npm run deploy     # 세 앱 빌드 후 운영 주소에 배포 (Git Bash 필요
 ```
 
 - `develop`에 푸시(머지)되면 GitHub Actions가 자동으로 배포합니다. 레포 Secrets에 `VERCEL_TOKEN`이 필요합니다.
+- 배포본이 부를 API 주소는 레포 변수(Settings → Secrets and variables → Actions → **Variables**) `VITE_API_BASE_URL`에 넣습니다. 지금 값: 스테이징 `https://211-233-223-189.sslip.io`
+  - 변수가 없으면 화면 검토용으로 배포됩니다 (로그인 없이 화면만, 어드민은 가짜 데이터).
+  - 백엔드 `CORS_ALLOWED_ORIGINS`에 위 세 주소가 있어야 합니다 (mnms-chonsu-lab/mnm-dev#32). 없으면 브라우저가 요청을 막습니다.
+  - 값은 빌드할 때 들어갑니다. 변수만 바꿨으면 Actions → ci → **Run workflow**(develop)로 다시 배포합니다.
 - 위 명령은 로컬 작업 폴더의 코드를 그대로 올립니다. 평소에는 자동 배포를 씁니다.
 - Vercel Hobby(무료) 요금제의 개인 계정 프로젝트입니다.
