@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore, type ComponentType, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type FormEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError, apiReady, changePassword, getSession, login, logout, setOnExpired, type Role } from '@mnm/api-client';
+import { api, ApiError, apiReady, changePassword, getSession, login, logout, setOnExpired, type Page, type Role } from '@mnm/api-client';
 import './ui.css';
 
 export { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -119,16 +119,32 @@ export const Dots = ({ n, on }: { n: number; on: number }) => (
 /** 빨간 안내 문구. 내용이 없으면 그리지 않는다 */
 export const Err = ({ children }: Kids) => (children ? <span className="err" role="alert">{children}</span> : null);
 
-/** err: 칸 아래 빨간 안내 (VALID-422 칸별 문구 등). 나머지 속성은 input에 그대로 */
-export const Input = ({ label, rows, err, ...p }: { label: string; rows?: number; err?: string } & InputHTMLAttributes<HTMLInputElement>) =>
-  rows ? (
-    <textarea className="input" rows={rows} placeholder={label} aria-label={label} />
-  ) : (
-    <>
+/** top이면 칸 위에 이름을 보인다 (값이 채워진 편집 칸용) */
+const Field = ({ label, top, children }: Kids & { label: string; top?: boolean }) =>
+  top ? <label className="fld"><small>{label}</small>{children}</label> : <>{children}</>;
+
+/** err: 칸 아래 빨간 안내 (VALID-422 칸별 문구 등). 나머지 속성은 input(rows면 textarea)에 그대로 */
+export const Input = ({ label, rows, err, top, ...p }: { label: string; rows?: number; err?: string; top?: boolean } & InputHTMLAttributes<HTMLInputElement>) => (
+  <Field label={label} top={top}>
+    {rows ? (
+      <textarea className="input" rows={rows} placeholder={label} aria-label={label} aria-invalid={err ? true : undefined} {...(p as TextareaHTMLAttributes<HTMLTextAreaElement>)} />
+    ) : (
       <input className="input" placeholder={label} aria-label={label} aria-invalid={err ? true : undefined} {...p} />
-      <Err>{err}</Err>
-    </>
-  );
+    )}
+    <Err>{err}</Err>
+  </Field>
+);
+
+/** options: [값, 보이는 글자]. 첫 칸(빈 값)에 label을 보인다 */
+export const Select = ({ label, options, err, top, ...p }: { label: string; options: [string, string][]; err?: string; top?: boolean } & SelectHTMLAttributes<HTMLSelectElement>) => (
+  <Field label={label} top={top}>
+    <select className="input" aria-label={label} aria-invalid={err ? true : undefined} {...p}>
+      <option value="">{label}</option>
+      {options.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+    </select>
+    <Err>{err}</Err>
+  </Field>
+);
 
 /** 엔터로도 보내지는 폼. 레이아웃은 감싸지 않은 것과 같다 */
 export const Form = ({ onSubmit, children }: Kids & { onSubmit: (e: FormEvent) => void }) => (
@@ -298,11 +314,11 @@ export function Sheet({ children }: Kids) {
   );
 }
 
-/** 가운데 모달. 바깥을 누르면 직전 화면으로 */
-export function Modal({ children }: Kids) {
+/** 가운데 모달. 바깥을 누르면 onClose, 없으면 직전 화면으로 */
+export function Modal({ onClose, children }: Kids & { onClose?: () => void }) {
   const go = useGo();
   return (
-    <div className="dim" onClick={go(-1)}>
+    <div className="dim" onClick={onClose ?? go(-1)}>
       <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>{children}</div>
     </div>
   );
@@ -379,6 +395,56 @@ export const Chart = ({ values }: { values: number[] }) => (
   </div>
 );
 
+/* ---------- 데이터 불러오기 ---------- */
+/** 웹(접수자·어드민) 오류 문구: 서버 message + 오류 번호(request_id) */
+export const errText = (e: ApiError) => e.message + (e.requestId ? ` (오류 번호 ${e.requestId})` : '');
+const toApiError = (e: unknown) => (e instanceof ApiError ? e : new ApiError(0, 'SRV-5XX', '잠시 문제가 생겼어요. 다시 시도해 주세요.'));
+
+export type Query = { loading: boolean; err?: ApiError; reload: () => void };
+
+/** GET 결과. path가 바뀌거나 reload하면 다시 부른다. 다시 부르는 동안 이전 data는 그대로 둔다 */
+export function useApi<T>(path: string): Query & { data?: T } {
+  const [s, setS] = useState<{ data?: T; err?: ApiError; loading: boolean }>({ loading: true });
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setS((x) => ({ data: x.data, loading: true }));
+    api<T>(path).then(
+      (data) => live && setS({ data, loading: false }),
+      (e) => live && setS({ err: toApiError(e), loading: false }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [path, n]);
+  return { ...s, reload: () => setN((x) => x + 1) };
+}
+
+/** 목록(Page) 결과. more()로 다음 쪽을 이어 붙인다. 다음 쪽이 없으면 more는 undefined */
+export function usePage<T>(path: string): Query & { items: T[]; more?: () => void } {
+  const [s, setS] = useState<{ items: T[]; next: string | null; err?: ApiError; loading: boolean }>({ items: [], next: null, loading: true });
+  const [n, setN] = useState(0);
+  const seq = useRef(0);
+  const load = (cursor?: string) => {
+    const my = ++seq.current; // 늦게 온 이전 요청(검색어를 바꾸기 전)의 응답은 버린다
+    setS((x) => ({ ...x, err: undefined, loading: true }));
+    api<Page<T>>(path + (cursor ? (path.includes('?') ? '&' : '?') + 'cursor=' + encodeURIComponent(cursor) : '')).then(
+      (p) => my === seq.current && setS((x) => ({ items: cursor ? [...x.items, ...p.items] : p.items, next: p.has_next ? p.next_cursor : null, loading: false })),
+      (e) => my === seq.current && setS((x) => ({ ...x, err: toApiError(e), loading: false })),
+    );
+  };
+  useEffect(load, [path, n]);
+  const { items, err, loading, next } = s;
+  return { items, err, loading, reload: () => setN((x) => x + 1), more: next && !loading ? () => load(next) : undefined };
+}
+
+/** 불러오는 중 · 오류([다시 시도]) · 빈 목록 안내. empty 문구는 빈 목록일 때만 넘긴다 */
+export function Status({ q, empty }: { q: Query; empty?: string | false }) {
+  if (q.err) return <Info tone="d"><span role="alert">{errText(q.err)}</span> <Btn v="t" onClick={q.reload}>다시 시도</Btn></Info>;
+  if (q.loading) return <Muted>불러오는 중…</Muted>;
+  return empty ? <Muted>{empty}</Muted> : null;
+}
+
 /* ---------- 로그인 ---------- */
 /** 로그인 후 갈 곳: ?next=(로그인 화면으로 오기 전에 보던 화면) 또는 home */
 export function useGoNext(home: string) {
@@ -395,8 +461,8 @@ export function useAuthForm(send: () => Promise<void>, msg = (e: ApiError) => e.
   const [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(false);
   const [err, setErr] = useState<Record<string, string>>({});
-  const submit = async (ev: FormEvent) => {
-    ev.preventDefault();
+  const submit = async (ev?: FormEvent) => {
+    ev?.preventDefault();
     setBusy(true);
     setErr({});
     try {

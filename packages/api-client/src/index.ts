@@ -19,9 +19,24 @@ export class ApiError extends Error {
   }
 }
 
+/** 목록 응답의 data. 다음 요청에 next_cursor를 cursor로 넘긴다 */
+export type Page<T> = { items: T[]; has_next: boolean; next_cursor: string | null };
+
+/** 빈 값은 빼고 쿼리 문자열을 만든다. 없으면 '' */
+export function qs(p: Record<string, string | number | undefined | null>) {
+  const s = new URLSearchParams(Object.entries(p).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])).toString();
+  return s ? '?' + s : '';
+}
+
 const BASE: string = import.meta.env.VITE_API_BASE_URL ?? '';
-/** API 주소가 있는 빌드인지. 없으면(화면 검토용 배포) 로그인 없이 화면을 연다 */
+/** API 주소가 있는 빌드인지. 없으면(화면 검토용 배포) 로그인 없이 화면을 열고 가짜 데이터를 보여 준다 */
 export const apiReady = BASE !== '';
+
+let mocks: Record<string, unknown> = {};
+/** API 주소가 없는 빌드에서 GET 응답 대신 줄 가짜 데이터. 키는 쿼리를 뺀 경로 */
+export const setMocks = (m: Record<string, unknown>) => {
+  mocks = m;
+};
 
 /* ---------- 로그인 상태 ---------- */
 const KEY = 'mnm-session';
@@ -56,6 +71,11 @@ export const setOnExpired = (f: () => void) => {
 /* ---------- 호출 ---------- */
 /** `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다 */
 export async function api<T>(path: string, { method = 'GET', body, headers }: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+  if (!apiReady) {
+    const m = mocks[path.split('?')[0]];
+    if (method === 'GET' && m !== undefined) return m as T;
+    throw new ApiError(0, 'MOCK', '화면 검토용 배포라 서버에 보내지 않아요.');
+  }
   const token = getSession()?.access_token;
   let res: Response;
   try {
@@ -101,3 +121,4 @@ export const farmerLogin = (farm_no: string, phone: string) => signIn('/api/auth
 export const login = (login_id: string, password: string) => signIn('/api/auth/login', { login_id, password });
 /** 임시 비밀번호 → 새 비밀번호. 새 토큰으로 바뀐다 */
 export const changePassword = (new_password: string) => signIn('/api/auth/password', { new_password });
+export * from './admin';
