@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [develop]
+  # 레포 변수(VITE_API_BASE_URL)만 바꿨을 때 Actions 탭에서 develop 다시 배포
+  workflow_dispatch:
 
 # 같은 브랜치에서 새 실행이 오면 이전 실행을 취소한다
 concurrency:
@@ -23,8 +25,10 @@ jobs:
       # PR: 타입 검사 + 세 앱 빌드
       - if: github.event_name == 'pull_request'
         run: npm run build
-      # develop 푸시: 빌드 후 Vercel 배포 (레포 Secrets의 VERCEL_TOKEN 필요)
-      - if: github.event_name == 'push'
+      # develop 푸시·수동 실행(develop만): 빌드 후 Vercel 배포 (레포 Secrets의 VERCEL_TOKEN 필요)
+      # 레포 변수 VITE_API_BASE_URL(스테이징 API 주소)이 있으면 배포본이 그 API를 부른다. 없으면 화면 검토용(가짜 데이터)
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
         run: npm run deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
