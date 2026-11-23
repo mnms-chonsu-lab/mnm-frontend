@@ -42,7 +42,8 @@ export type InboxList = {
   page: Page<InboxRow>;
 };
 
-export type Ratio = { stand: number; lie: number; eat: number };
+/** 행동 비율(%, 참고) */
+export type BehaviorRatio = { stand: number; lie: number; eat: number };
 /** RCV-02 한 장 요약 */
 export type InboxDetail = {
   delivery_id: number;
@@ -62,7 +63,7 @@ export type InboxDetail = {
     barn: string | null;
     /** url: 원본 서명 URL (만료 10분). 올라오기 전이면 null. match null = 확인 중·확인 안 됨 */
     photos: { media_id: number; requested_part: string; predicted_part: string | null; match: boolean | null; url: string | null }[];
-    video: { media_id: number; url: string | null; ratio: Ratio | null } | null;
+    video: { media_id: number; url: string | null; ratio: BehaviorRatio | null } | null;
   } | null;
   history: { history_report_id: number; type: string; fields: Record<string, string | null>; missing: string[]; due_date: string | null; d_day: number | null; status: string } | null;
   basics: { vaccine: string | null; disinfection: string | null; visit: string | null } | null;
