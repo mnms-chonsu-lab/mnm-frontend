@@ -1,5 +1,6 @@
 // 화면 검토용 배포(API 주소 없음)에서 GET 응답 대신 쓰는 가짜 데이터. 실제 농가 정보가 아닌 예시 값만 쓴다
 // 키는 쿼리를 뺀 API 경로. 쿼리(필터·검색)는 무시하고 같은 값을 준다
+export * from './farmer';
 import type { AdminUser, AdminUserRow, AuditLog, Guide, Health, Org, Page, TodayMetrics } from '@mnm/api-client';
 
 const page = <R,>(items: R[]): Page<R> => ({ items, has_next: false, next_cursor: null });

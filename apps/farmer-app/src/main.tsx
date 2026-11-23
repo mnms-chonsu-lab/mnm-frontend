@@ -1,9 +1,13 @@
+import { setMocks } from '@mnm/api-client';
+import { farmerMocks } from '@mnm/mocks';
 import { mount, type Screen } from '@mnm/ui';
 import * as home from './home';
 import * as diary from './diary';
 import * as report from './report';
 import * as check from './check';
 import * as popups from './popups';
+
+setMocks(farmerMocks);
 
 // 화면 ID는 화면설계서 기준. 경로는 ID 소문자(/f-s01)
 const screens: Screen[] = [
