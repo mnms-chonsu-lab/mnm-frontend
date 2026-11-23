@@ -1,106 +1,282 @@
-import { Btn, Card, Chips, Dots, H, Info, Input, KV, Mic, Muted, P, Phone, Pill, Row, useSearchParams } from '@mnm/ui';
+import { useEffect, useRef, useState } from 'react';
+import { api, type Category, type DiaryDay, type DiaryDetail, type DiaryEntry, type DiarySaved, type DraftItem, type HistoryReport, type RecordDraft } from '@mnm/api-client';
+import { Btn, Card, Chips, Dots, Err, H, Info, Input, KV, Muted, P, Phone, Pill, Row, Select, Status, useApi, useNavigate, usePage } from '@mnm/ui';
+import { RECEIVER, cowName, flow, kat, kday, kdow, dday, useCows, useId, useSend } from './shared';
 
-export const FS02 = () => (
-  <Phone title="말로 기록하기" tab="홈" say="오늘 한 일을 말씀해 주세요. 말을 마치면 다 말했어요 버튼을 눌러 주세요.">
-    <Dots n={3} on={0} />
-    <H center>오늘 한 일을<br /><em>말씀해 주세요</em></H>
-    <Mic />
-    <P center><Pill>● 듣고 있어요</Pill></P>
-    <Card>“아침에 2번 축사 소독했고, 1234번이 사료를 좀 남겼어.”</Card>
-    <Btn v="t" to="/f-s02t">말 대신 글로 쓰기</Btn>
-    <Row>
-      <Btn v="t">다시 말하기</Btn>
-      <Btn to="/f-s03">다 말했어요</Btn>
-    </Row>
-  </Phone>
-);
+/** 정리 초안을 받으면: 음성 인식 실패 → 글로 쓰기, 정리 실패 → 직접 고르기, 아니면 확인 화면 */
+const afterDraft = (d: RecordDraft) => {
+  flow.draft = d;
+  return d.fallback === 'text_input' ? '/f-s02t' : d.fallback === 'select_input' ? '/f-s03e' : '/f-s03';
+};
 
-export const FS02T = () => (
-  <Phone title="글로 쓰기" tab="홈" say="오늘 한 일을 글로 써 주세요.">
-    <Dots n={3} on={0} />
-    <H center>오늘 한 일을<br /><em>써 주세요</em></H>
-    <Input label="예: 2번 축사 소독함. 1234번 사료 남김" rows={4} />
-    <Chips items={['소독', '관찰', '접종', '출생', '폐사', '이동']} />
-    <Btn to="/f-s03">다 썼어요</Btn>
-    <Btn v="t" to="/f-s02">다시 말로 하기</Btn>
-  </Phone>
-);
+// 녹음 형식: 브라우저가 지원하는 것 (크롬·안드로이드 webm, 사파리·iOS mp4)
+const AUDIO = ['audio/webm', 'audio/mp4'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t));
+const MAX_SEC = 60; // FARM-03 60초 이하
 
-/** 저장 후 이동: 기록 종류(?k=)에 따라 신고서 초안 화면이 갈린다. 기본은 화면설계서 예시(출생) 흐름 */
-const AFTER_SAVE: Record<string, string> = { 출생: '/f-s04q', 폐사: '/f-s04d', 이동: '/f-s04m' };
-
-export function FS03() {
-  const [q] = useSearchParams();
-  const kind = q.get('k') ?? '출생';
+export function FS02() {
+  const nav = useNavigate();
+  const rec = useRef<MediaRecorder>();
+  const [on, setOn] = useState(false);
+  const [blob, setBlob] = useState<Blob>();
+  const [micErr, setMicErr] = useState<string>();
+  const { submit, err, busy } = useSend(async () => {
+    const f = new FormData();
+    f.append('audio', blob!, 'voice.' + (AUDIO === 'audio/mp4' ? 'm4a' : 'webm'));
+    nav(afterDraft(await api<RecordDraft>('/api/farmer/records/voice', { method: 'POST', body: f })));
+  });
+  useEffect(() => () => rec.current?.stream.getTracks().forEach((t) => t.stop()), []);
+  const start = async () => {
+    setMicErr(undefined);
+    setBlob(undefined);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream, { mimeType: AUDIO });
+      const parts: Blob[] = [];
+      r.ondataavailable = (e) => parts.push(e.data);
+      r.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setBlob(new Blob(parts, { type: AUDIO }));
+        setOn(false);
+      };
+      r.start();
+      rec.current = r;
+      setOn(true);
+      setTimeout(() => r.state === 'recording' && r.stop(), MAX_SEC * 1000);
+    } catch {
+      setMicErr('마이크를 쓸 수 없어요. 글로 써 주세요.');
+    }
+  };
+  const stop = () => rec.current?.state === 'recording' && rec.current.stop();
   return (
-    <Phone title="기록 확인" tab="홈" say="이렇게 적을까요? 소독 2번 축사, 관찰 1234번 사료 남김. 맞으면 저장할게요 버튼을 눌러 주세요.">
-      <Dots n={3} on={1} />
-      <H center>이렇게 <em>적을까요?</em></H>
-      <KV rows={[
-        ['날짜', '11월 2일(월) ›', false, '/f-s03e'],
-        ['소독', '2번 축사 ›', false, '/f-s03e'],
-        ['관찰', '1234번 사료 남김 ›', false, '/f-s03e'],
-      ]} />
-      <Info><b>1234번</b>은 3일 전에도 사료를 남겼어요. 내일도 지켜봐 주세요.</Info>
-      <Info tone="w">송아지 출생은 <b>5일 안에 신고</b>해야 해요. 저장하면 신고서 초안을 써 둘게요.</Info>
-      <Btn to={AFTER_SAVE[kind] ?? '/f-s01'}>네, 저장할게요</Btn>
-      <Btn v="s" to="/f-s03e">고칠게요</Btn>
+    <Phone title="말로 기록하기" tab="홈" say="오늘 한 일을 말씀해 주세요. 말을 마치면 다 말했어요 버튼을 눌러 주세요.">
+      <Dots n={3} on={0} />
+      <H center>오늘 한 일을<br /><em>말씀해 주세요</em></H>
+      {AUDIO ? (
+        <button type="button" className="mic" aria-label={on ? '녹음 멈추기' : '녹음 시작'} aria-pressed={on} onClick={on ? stop : start} />
+      ) : (
+        <Info tone="w">이 화면에서는 녹음이 안 돼요. 글로 써 주세요.</Info>
+      )}
+      <P center>{on ? <Pill>● 듣고 있어요</Pill> : blob ? <Pill tone="g">녹음했어요</Pill> : <Muted>마이크를 누르고 말씀하세요 (최대 {MAX_SEC}초)</Muted>}</P>
+      <Err>{micErr ?? err._ ?? err.audio}</Err>
+      <Btn v="t" to="/f-s02t">말 대신 글로 쓰기</Btn>
+      <Row>
+        <Btn v="t" onClick={start} disabled={on || busy || !AUDIO}>다시 말하기</Btn>
+        <Btn onClick={on ? stop : submit} disabled={busy || (!on && !blob)}>{busy ? '정리하는 중…' : '다 말했어요'}</Btn>
+      </Row>
     </Phone>
   );
 }
 
-const KINDS = ['사육현황', '접종', '소독', '관찰', '출생', '폐사', '이동', '메모'];
+const HINTS = ['소독', '관찰', '접종', '출생', '폐사', '이동'];
 
-export const FS03E = () => (
-  <Phone title="기록 고치기" tab="홈" say="어떤 기록인가요? 종류를 고르고 내용을 확인해 주세요.">
-    <H>어떤 <em>기록</em>인가요?</H>
-    <Chips items={KINDS} on={3} />
-    <Input label="소 선택: 1234번 ›" />
-    <Row>
-      <Input label="내용: 사료 조금 남김" />
-      <Btn v="s">🎙 말로 다시</Btn>
-    </Row>
-    <Btn v="t">+ 항목 더하기</Btn>
-    <Btn to="/f-s03">고친 내용으로 확인</Btn>
-    {/* shortcut: 종류 선택이 저장 흐름에 연결되지 않음, 상태 연동 전까지 신고서 종류별 확인 화면을 버튼으로 연다 */}
-    <Row>
-      <Btn v="t" to="/f-s03?k=폐사">폐사 기록으로 확인</Btn>
-      <Btn v="t" to="/f-s03?k=이동">이동 기록으로 확인</Btn>
-    </Row>
-  </Phone>
-);
+export function FS02T() {
+  const nav = useNavigate();
+  const [text, setText] = useState(flow.draft?.raw_text ?? '');
+  const { submit, err, busy } = useSend(async () => {
+    nav(afterDraft(await api<RecordDraft>('/api/farmer/records/text', { method: 'POST', body: { text } })));
+  });
+  return (
+    <Phone title="글로 쓰기" tab="홈" say="오늘 한 일을 글로 써 주세요.">
+      <Dots n={3} on={0} />
+      <H center>오늘 한 일을<br /><em>써 주세요</em></H>
+      {flow.draft?.fallback === 'text_input' && <Info tone="w">말씀을 알아듣지 못했어요. 글로 써 주세요.</Info>}
+      <Input label="예: 2번 축사 소독함. 1234번 사료 남김" rows={4} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} err={err.text} />
+      <Chips items={HINTS} onPick={(i) => setText((t) => (t ? t + ' ' : '') + HINTS[i])} />
+      <Err>{err._}</Err>
+      <Btn onClick={submit} disabled={busy || !text.trim()}>{busy ? '정리하는 중…' : '다 썼어요'}</Btn>
+      <Btn v="t" to="/f-s02">다시 말로 하기</Btn>
+    </Phone>
+  );
+}
 
-export const FS15 = () => (
-  <Phone title="농장 일지" back={false} tab="기록">
-    <H>말로 남긴 기록이<br /><em>날짜별로</em> 모였어요</H>
-    <P><b>11월 2일 (월)</b></P>
-    <Card to="/f-s15d">
-      <span><Pill>소독</Pill> 출입구 소독</span>
-      <span><Pill>신고</Pill> 1234번 기록 전달 · 홍성축협</span>
-    </Card>
-    <P><b>10월 30일 (금)</b></P>
-    <Card to="/f-s15d">
-      <span><Pill>관찰</Pill> 1234번 사료 조금 남김</span>
-    </Card>
+/** 저장한 신고서 → 화면: 빈칸이 있으면 빈칸 묻기, 아니면 종류별 초안 */
+export const reportPath = (r: HistoryReport) =>
+  (r.missing.length ? '/f-s04q' : r.type === '출생' ? '/f-s04' : r.type === '폐사' ? '/f-s04d' : '/f-s04m') + `?id=${r.history_report_id}`;
+
+const itemText = (x: Pick<DraftItem, 'value' | 'cow_tag4' | 'vaccine_type' | 'head_count'>) =>
+  [x.cow_tag4 && `${x.cow_tag4}번`, x.vaccine_type, x.value, x.head_count != null && `${x.head_count}두`].filter(Boolean).join(' ') || '-';
+
+const NoDraft = () => (
+  <>
+    <Info tone="w">확인할 기록이 없어요. 처음부터 다시 말씀해 주세요.</Info>
     <Btn to="/f-s02">말로 기록하기</Btn>
-  </Phone>
+  </>
 );
 
-export const FS15D = () => (
-  <Phone title="11월 2일 기록" tab="기록">
-    <KV rows={[['소독', '2번 축사'], ['관찰', '1234번 사료 남김']]} />
+export function FS03() {
+  const nav = useNavigate();
+  const d = flow.draft;
+  const { submit, err, busy } = useSend(async () => {
+    const r = await api<DiarySaved>('/api/farmer/diary', {
+      method: 'POST',
+      body: {
+        raw_text: d!.raw_text,
+        audio_media_id: d!.audio_media_id,
+        items: d!.items.map(({ category, value, cow_id, vaccine_type, head_count }) => ({ category, value, cow_id, vaccine_type, head_count })),
+        report: d!.report_type ? { type: d!.report_type, fields: d!.report_fields ?? {} } : null,
+      },
+    });
+    flow.draft = undefined;
+    nav(r.history_report ? reportPath(r.history_report) : '/f-s15', { replace: true });
+  });
+  const say = d ? `이렇게 적을까요? ${d.items.map((x) => `${x.category} ${itemText(x)}`).join(', ')}. 맞으면 저장할게요 버튼을 눌러 주세요.` : undefined;
+  return (
+    <Phone title="기록 확인" tab="홈" say={say}>
+      <Dots n={3} on={1} />
+      <H center>이렇게 <em>적을까요?</em></H>
+      {!d || d.items.length === 0 ? <NoDraft /> : (
+        <>
+          <KV rows={[['날짜', '오늘 ›', false, '/f-s03e'], ...d.items.map((x, i): [string, string, boolean, string] => [x.category + (d.items.filter((y) => y.category === x.category).length > 1 ? ` ${i + 1}` : ''), itemText(x) + ' ›', false, '/f-s03e'])]} />
+          {d.items.some((x) => x.cow_tag4 && !x.cow_id) && <Info tone="w">내 소 목록에 없는 귀표 번호가 있어요. 고칠게요를 눌러 소를 골라 주세요.</Info>}
+          {d.report_type && d.report_notice && (
+            <Info tone="w">{d.report_type} 신고는 <b>{kday(d.report_notice.report_due)}까지</b>({dday(d.report_notice.d_day)}) 해야 해요. 저장하면 신고서 초안을 써 둘게요.</Info>
+          )}
+          <Err>{err._ ?? Object.values(err)[0]}</Err>
+          <Btn onClick={submit} disabled={busy}>네, 저장할게요</Btn>
+          <Btn v="s" to="/f-s03e">고칠게요</Btn>
+        </>
+      )}
+    </Phone>
+  );
+}
+
+const KINDS: Category[] = ['사육현황', '접종', '소독', '관찰', '출입', '출생', '폐사', '이동', '메모'];
+const blank = (): DraftItem => ({ category: '관찰', value: '', cow_tag4: null, cow_id: null, vaccine_type: null, head_count: null });
+
+/** 한 항목 고치기: 종류 · 소 · 내용 */
+function ItemEdit({ x, onChange, err = {} }: { x: DraftItem; onChange: (x: DraftItem) => void; err?: Record<string, string> }) {
+  const cows = useCows().data?.items ?? [];
+  return (
     <Card>
-      <Muted>내가 한 말</Muted>
-      <span>“아침에 2번 축사 소독했고, 1234번이 사료를 좀 남겼어.”</span>
+      <Chips items={KINDS} on={KINDS.indexOf(x.category)} onPick={(i) => onChange({ ...x, category: KINDS[i] })} />
+      <Select label="소 선택 (없으면 비워 두기)" options={cows.map((c) => [String(c.cow_id), cowName(c, cows)])} value={x.cow_id ? String(x.cow_id) : ''}
+        onChange={(e) => {
+          const c = cows.find((y) => String(y.cow_id) === e.target.value);
+          onChange({ ...x, cow_id: c?.cow_id ?? null, cow_tag4: c?.tag_last4 ?? null });
+        }} err={err.cow_id} />
+      <Input label="내용 예: 사료 조금 남김" value={x.value ?? ''} maxLength={500} onChange={(e) => onChange({ ...x, value: e.target.value })} err={err.value} />
     </Card>
-    <Card>
-      <b>전달 내역</b>
-      <span>11월 2일 09:42 · 홍성축협 방역팀 · <Pill tone="g">확인함</Pill></span>
-    </Card>
-    <Btn v="s" to="/f-s19">축협 직원에게 화면으로 보여주기</Btn>
-    <Row>
-      <Btn v="t" to="/f-s15">지우기</Btn>
-      <Btn v="s" to="/f-s03e">고치기</Btn>
-    </Row>
-  </Phone>
-);
+  );
+}
+
+/** 기록 고치기. ?id=가 있으면 저장된 일지 한 건(FARM-26), 없으면 저장 전 정리 초안 */
+export function FS03E() {
+  const id = useId();
+  return id ? <EntryEdit id={id} /> : <DraftEdit />;
+}
+
+function DraftEdit() {
+  const nav = useNavigate();
+  const [items, setItems] = useState<DraftItem[]>(flow.draft?.items.length ? flow.draft.items : [blank()]);
+  const done = () => {
+    flow.draft = { ...(flow.draft ?? { raw_text: null, intent: null, report_type: null, report_fields: null, missing: [], report_notice: null, audio_media_id: null }), items, fallback: null };
+    nav('/f-s03');
+  };
+  return (
+    <Phone title="기록 고치기" tab="홈" say="어떤 기록인가요? 종류를 고르고 내용을 확인해 주세요.">
+      <H>어떤 <em>기록</em>인가요?</H>
+      {flow.draft?.fallback === 'select_input' && <Info tone="w">내용을 정리하지 못했어요. 종류를 직접 골라 주세요.</Info>}
+      {items.map((x, i) => <ItemEdit key={i} x={x} onChange={(y) => setItems(items.map((z, j) => (j === i ? y : z)))} />)}
+      <Row>
+        <Btn v="t" onClick={() => setItems([...items, blank()])}>+ 항목 더하기</Btn>
+        {items.length > 1 && <Btn v="t" onClick={() => setItems(items.slice(0, -1))}>마지막 항목 빼기</Btn>}
+      </Row>
+      <Btn onClick={done}>고친 내용으로 확인</Btn>
+    </Phone>
+  );
+}
+
+function EntryEdit({ id }: { id: string }) {
+  const nav = useNavigate();
+  const d = useApi<DiaryDetail>('/api/farmer/diary/' + id);
+  const [x, setX] = useState<DraftItem>();
+  const e = d.data?.entry;
+  useEffect(() => {
+    if (e && e.category !== '신고') setX({ category: e.category, value: e.value, cow_tag4: e.cow_tag4, cow_id: e.cow_id, vaccine_type: e.vaccine_type, head_count: e.head_count });
+  }, [e]);
+  const { submit, err, busy } = useSend(async () => {
+    await api<DiaryEntry>('/api/farmer/diary/' + id, { method: 'PATCH', body: { date: e!.date, category: x!.category, value: x!.value, cow_id: x!.cow_id, vaccine_type: x!.vaccine_type, head_count: x!.head_count } });
+    nav(`/f-s15d?id=${id}`, { replace: true });
+  });
+  return (
+    <Phone title="기록 고치기" tab="기록">
+      <H>어떤 <em>기록</em>인가요?</H>
+      <Status q={d} />
+      {e?.category === '신고' && <Info tone="w">신고 기록은 고칠 수 없어요.</Info>}
+      {x && <ItemEdit x={x} onChange={setX} err={err} />}
+      <Err>{err._}</Err>
+      <Btn onClick={submit} disabled={!x || busy}>고친 내용 저장</Btn>
+    </Phone>
+  );
+}
+
+export function FS15() {
+  const list = usePage<DiaryDay>('/api/farmer/diary');
+  return (
+    <Phone title="농장 일지" back={false} tab="기록">
+      <H>말로 남긴 기록이<br /><em>날짜별로</em> 모였어요</H>
+      <Status q={list} empty={list.items.length === 0 && '아직 남긴 기록이 없어요.'} />
+      {list.items.map((day) => (
+        <Card key={day.date}>
+          <b>{kdow(day.date)}</b>
+          {day.entries.map((x) => (
+            <Btn key={x.entry_id} v="t" to={`/f-s15d?id=${x.entry_id}`}><Pill>{x.category}</Pill>&nbsp;{itemText(x)}</Btn>
+          ))}
+        </Card>
+      ))}
+      {list.more && <Btn v="t" onClick={list.more}>지난 기록 더 보기</Btn>}
+      <Btn to="/f-s02">말로 기록하기</Btn>
+    </Phone>
+  );
+}
+
+export function FS15D() {
+  const id = useId();
+  const nav = useNavigate();
+  const d = useApi<DiaryDetail>('/api/farmer/diary/' + id);
+  const [ask, setAsk] = useState(false);
+  const del = useSend(async () => {
+    await api('/api/farmer/diary/' + id, { method: 'DELETE' });
+    nav('/f-s15', { replace: true });
+  });
+  const x = d.data;
+  return (
+    <Phone title={x ? kday(x.entry.date) + ' 기록' : '일지 기록'} tab="기록">
+      <Status q={d} />
+      {x && (
+        <>
+          <KV rows={[[x.entry.category, itemText(x.entry)]]} />
+          {x.raw_text && (
+            <Card>
+              <Muted>내가 한 말</Muted>
+              <span>“{x.raw_text}”</span>
+              {x.audio_url && <audio controls src={x.audio_url} style={{ width: '100%' }} />}
+            </Card>
+          )}
+          {x.deliveries.length > 0 && (
+            <Card>
+              <b>전달 내역</b>
+              {x.deliveries.map((v) => <span key={v.delivery_id}>{kat(v.approved_at)} · {v.org_name} · <Pill tone={v.receiver_status === 'done' ? 'g' : undefined}>{RECEIVER[v.receiver_status]}</Pill></span>)}
+            </Card>
+          )}
+          {ask ? (
+            <Info tone="w">
+              정말 지울까요?{x.deliveries.length > 0 && ' 이미 보낸 기록은 받은 곳의 사본이 남아요.'}
+              <Row>
+                <Btn v="t" onClick={() => setAsk(false)}>아니요</Btn>
+                <Btn v="d" onClick={del.submit} disabled={del.busy}>지우기</Btn>
+              </Row>
+            </Info>
+          ) : (
+            <Row>
+              <Btn v="t" onClick={() => setAsk(true)}>지우기</Btn>
+              {x.entry.category !== '신고' && <Btn v="s" to={`/f-s03e?id=${id}`}>고치기</Btn>}
+            </Row>
+          )}
+          <Err>{del.err._}</Err>
+        </>
+      )}
+    </Phone>
+  );
+}
+

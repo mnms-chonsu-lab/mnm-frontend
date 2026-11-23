@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 // 요청·응답 형식은 mnm-dev `docs/api/openapi.yaml` 기준
+export * from './farmer';
 
 export type Role = 'farmer' | 'receiver' | 'admin';
 /** 로그인 응답 (AUTH-01·02·04) */
@@ -69,7 +70,7 @@ export const setOnExpired = (f: () => void) => {
 };
 
 /* ---------- 호출 ---------- */
-/** `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다 */
+/** `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다. body가 FormData면 multipart로 보낸다 */
 export async function api<T>(path: string, { method = 'GET', body, headers }: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
   if (!apiReady) {
     const m = mocks[path.split('?')[0]];
@@ -77,16 +78,17 @@ export async function api<T>(path: string, { method = 'GET', body, headers }: { 
     throw new ApiError(0, 'MOCK', '화면 검토용 배포라 서버에 보내지 않아요.');
   }
   const token = getSession()?.access_token;
+  const form = body instanceof FormData;
   let res: Response;
   try {
     res = await fetch(BASE + path, {
       method,
       headers: {
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(body === undefined || form ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: 'Bearer ' + token } : {}),
         ...headers,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, 'NET-OFF', '인터넷이 연결되지 않았어요. 연결되면 이어서 보낼게요.');
@@ -106,6 +108,18 @@ export async function api<T>(path: string, { method = 'GET', body, headers }: { 
     onExpired();
   }
   throw e;
+}
+
+/** 중복되면 안 되는 요청(신고 전달·축협 부탁)의 Idempotency-Key. 같은 화면에서 다시 보낼 때는 같은 키를 쓴다 */
+export const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+
+/** FARM-12 양식대로 저장소에 파일을 바로 올린다 (API 서버를 거치지 않음). 실패하면 UPLOAD-FAIL */
+export async function uploadFile(upload_url: string, fields: Record<string, string>, file: Blob) {
+  const f = new FormData();
+  Object.entries(fields).forEach(([k, v]) => f.append(k, v));
+  f.append('file', file); // 저장소 POST 양식은 file이 마지막이어야 한다
+  const res = await fetch(upload_url, { method: 'POST', body: f }).catch(() => null);
+  if (!res?.ok) throw new ApiError(413, 'UPLOAD-FAIL', '파일을 올리지 못했어요. 다시 올려 주세요.');
 }
 
 /* ---------- 인증 (AUTH-01·02·04) ---------- */

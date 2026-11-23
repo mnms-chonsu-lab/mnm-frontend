@@ -42,10 +42,13 @@ export const Card = ({ to, children }: Kids & { to?: To }) => <Tap to={to} class
 export const Opt = ({ to, sel, children }: Kids & { to?: To; sel?: boolean }) => <Tap to={to} className={'opt' + (sel ? ' sel' : '')}>{children}</Tap>;
 export const Done = () => <div className="done" aria-hidden>✓</div>;
 export const Mic = () => <button type="button" className="mic" aria-label="마이크" />;
-export const Pic = ({ to, oval, children }: Kids & { to?: To; oval?: boolean }) => (
+/** src가 있으면 그 사진을 채워 보인다 (글자는 사진 설명으로) */
+export const Pic = ({ to, oval, src, children }: Kids & { to?: To; oval?: boolean; src?: string | null }) => (
   <Tap to={to} className="pic">
-    {oval && <span className="oval" />}
-    <span>{children}</span>
+    {src ? <img src={src} alt={typeof children === 'string' ? children : ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 }} /> : <>
+      {oval && <span className="oval" />}
+      <span>{children}</span>
+    </>}
   </Tap>
 );
 
@@ -175,14 +178,14 @@ type Prefs = { font?: number; hc?: boolean; speak?: boolean };
 const KEY = 'mnm-prefs';
 const isFarmer = () => document.documentElement.classList.contains('farmer');
 /** 글자 크기 단계 [이름, px]. 농가 앱 5단계, 접수자 웹 3단계. 단계를 바꾸면 html font-size만 바뀐다(전부 rem) */
-const fontSteps = (): [string, number][] =>
+export const fontSteps = (): [string, number][] =>
   isFarmer() ? [['작게', 16], ['보통', 19], ['조금 크게', 21], ['크게', 23], ['가장 크게', 26]] : [['보통', 16], ['크게', 18], ['가장 크게', 20]];
 const fontStep = (px?: number) => {
   const steps = fontSteps();
   return Math.max(0, steps.findIndex(([, v]) => v === (px ?? steps[isFarmer() ? 1 : 0][1])));
 };
 
-// shortcut: 기기(localStorage)에만 저장, user_settings API(FARM-20) 연동 시 서버에 저장해 다른 기기에서도 유지한다
+// 기기(localStorage)에 저장하고, 앱이 setPrefsSaver로 넘긴 함수로 서버(FARM-20)에도 저장한다
 let prefs: Prefs = (() => {
   try {
     return (JSON.parse(localStorage.getItem(KEY) ?? '{}') ?? {}) as Prefs;
@@ -198,8 +201,17 @@ function applyPrefs() {
 }
 applyPrefs();
 
-export function setPrefs(p: Prefs) {
+export type { Prefs };
+let saver: ((p: Prefs) => void) | undefined;
+/** 화면 설정을 바꿀 때마다 부를 함수 (농가 앱: 서버 저장) */
+export const setPrefsSaver = (f: (p: Prefs) => void) => {
+  saver = f;
+};
+
+/** save=false: 서버에서 받은 값을 적용할 때 (다시 저장하지 않음) */
+export function setPrefs(p: Prefs, save = true) {
   prefs = { ...prefs, ...p };
+  if (save) saver?.(prefs);
   try {
     localStorage.setItem(KEY, JSON.stringify(prefs));
   } catch {
@@ -260,6 +272,15 @@ export function PrefsCard() {
 }
 
 /* ---------- 농가 앱 틀 ---------- */
+// 하단 탭 [알림]의 안 읽은 수 (홈 요약 FARM-05에서 채움)
+let unread = 0;
+const unreadSubs = new Set<() => void>();
+export const setUnread = (n: number) => {
+  unread = n;
+  unreadSubs.forEach((f) => f());
+};
+const useUnread = () => useSyncExternalStore((f) => (unreadSubs.add(f), () => void unreadSubs.delete(f)), () => unread);
+
 const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알림', '/f-s16'], ['내 정보', '/f-s17']];
 
 /**
@@ -269,6 +290,7 @@ const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알
 export function Phone({ title, back = true, tab, report = true, banner, say, children }: Kids & { title: string; back?: boolean; tab?: string; report?: boolean; banner?: string; say?: string }) {
   const go = useGo();
   const p = usePrefs();
+  const n = useUnread();
   useEffect(() => {
     // shortcut: 소리 안내 문구(say)가 없으면 화면 제목을 읽는다, 화면별 문구 연결 시 say를 채운다
     screenText = () => say ?? document.querySelector('.h')?.textContent ?? title;
@@ -293,7 +315,7 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
               {TABS.map(([name, to]) => (
                 <Link key={name} to={to} className={name === tab ? 'on' : ''} aria-current={name === tab ? 'page' : undefined}>
                   {name}
-                  {name === '알림' && <b className="badge">2</b>}
+                  {name === '알림' && n > 0 && <b className="badge">{n}</b>}
                 </Link>
               ))}
             </nav>
