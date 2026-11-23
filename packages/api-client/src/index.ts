@@ -122,3 +122,4 @@ export const login = (login_id: string, password: string) => signIn('/api/auth/l
 /** 임시 비밀번호 → 새 비밀번호. 새 토큰으로 바뀐다 */
 export const changePassword = (new_password: string) => signIn('/api/auth/password', { new_password });
 export * from './admin';
+export * from './receiver';
