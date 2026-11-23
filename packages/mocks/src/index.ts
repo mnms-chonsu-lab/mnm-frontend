@@ -66,3 +66,4 @@ export const adminMocks: Record<string, unknown> = {
     { audit_log_id: 1, at: '2026-11-13T09:00:00Z', users_id: 4, user_name: '운영팀', user_role: 'admin', action: 'publish', target_type: 'biosecurity_rule', target_id: 3 },
   ]),
 };
+export * from './receiver';
