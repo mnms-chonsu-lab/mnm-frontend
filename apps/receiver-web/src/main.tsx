@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   api, ApiError, logout, qs, setMocks,
   type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
@@ -81,6 +81,14 @@ const Conflict = ({ id }: { id?: string | null }) => (
   </Modal>
 );
 
+/** 없는 기록(404)·관할 밖 기록(403)이면 전체 페이지 오류(R-E01)로 */
+function useErrorPage(e?: ApiError) {
+  const nav = useNavigate();
+  useEffect(() => {
+    if (e && (e.status === 404 || e.status === 403)) nav('/r-e01' + qs({ code: e.status, rid: e.requestId }), { replace: true });
+  }, [e]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 /* ---------- R-S02 접수된 기록 + 한 장 요약 (RCV-01·02) ---------- */
 const FILTERS: ['all' | ReceiverStatus, string][] = [['all', '전체'], ['new', '새로 도착'], ['checking', '확인 중'], ['done', '처리 완료']];
 
@@ -126,6 +134,7 @@ function Detail({ id }: { id: string }) {
   const d = useApi<InboxDetail>('/api/receiver/inbox/' + id);
   const [conflict, setConflict] = useState(false);
   const x = d.data;
+  useErrorPage(d.err);
   const move = (status: 'checking') => async () => {
     try {
       await api<StatusResult>(`/api/receiver/inbox/${id}/status`, { method: 'PATCH', body: { status, expected_status: x!.status } });
@@ -214,6 +223,7 @@ function RS02B() {
   const id = q.get('id');
   const nav = useNavigate();
   const d = useApi<InboxDetail>('/api/receiver/inbox/' + id);
+  useErrorPage(d.err);
   const h = d.data?.history;
   const [v, setV] = useState<Record<string, string>>({});
   // 농가가 비워 둔 칸 + 출생의 송아지 귀표만 채울 수 있다
@@ -481,18 +491,24 @@ function RS05() {
   );
 }
 
-// shortcut: 점검 화면은 MVP 제외(점검 API 없음), 예시 문구 그대로
-const RE01 = () => (
-  <>
-    <Mast>점검 예정: 11월 25일 22:00~23:00</Mast>
-    <Gnb brand="촌수의사" items={MENU} />
-    <Center>
-      <H>지금은 점검 중이에요</H>
-      <P>오후 3시에 다시 열려요. 급한 신고 접수는 기존 전화·시스템을 이용해 주세요.</P>
-      <Btn to="/r-s02">다시 확인하기</Btn>
-    </Center>
-  </>
-);
+/** 오류 페이지 (R-E01). ?code=403 관할 밖, 그 밖(없는 주소·없는 기록)은 404. ?rid=오류 번호. 점검(MAINT-503)은 MVP 제외 */
+function RE01() {
+  const [q] = useSearchParams();
+  const denied = q.get('code') === '403';
+  const rid = q.get('rid');
+  return (
+    <>
+      <Mast>{NOTICE}</Mast>
+      <Gnb brand="촌수의사" />
+      <Center>
+        <H>{denied ? '이 기록을 볼 권한이 없어요' : '찾는 기록이 없어요'}</H>
+        <P>{denied ? '우리 기관 관할 농가의 기록만 볼 수 있어요.' : '삭제됐거나 없는 기록이에요. 접수 목록에서 다시 찾아 주세요.'}</P>
+        {rid && <Muted>오류 번호 {rid}</Muted>}
+        <Btn to="/r-s02">접수 목록으로</Btn>
+      </Center>
+    </>
+  );
+}
 
 const RE02 = () => <Inbox><Conflict id={useId() || null} /></Inbox>;
 
@@ -509,7 +525,7 @@ const screens: Screen[] = [
   ['R-S03', '관할 농가', RS03],
   ['R-S04', '공식 지침', RS04],
   ['R-S05', '통계', RS05],
-  ['R-E01', '[오류] 점검 · 오류 페이지', RE01],
+  ['R-E01', '[오류] 없는 기록 · 권한 없음 페이지', RE01],
   ['R-E02', '[오류] 처리 충돌 모달', RE02],
 ];
 
