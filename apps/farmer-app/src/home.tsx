@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
-import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 
 export { CowList } from './shared';
@@ -117,9 +117,24 @@ export function FS16() {
   );
 }
 
+/** [로그아웃] → 확인 모달 → F-S00 */
 function LogoutBtn() {
   const nav = useNavigate();
-  return <Btn v="t" onClick={() => (logout(), nav('/f-s00'))}>로그아웃</Btn>;
+  const [ask, setAsk] = useState(false);
+  return (
+    <>
+      <Btn v="t" onClick={() => setAsk(true)}>로그아웃</Btn>
+      {ask && (
+        <Modal onClose={() => setAsk(false)}>
+          <H>로그아웃할까요?</H>
+          <Row>
+            <Btn v="t" onClick={() => setAsk(false)}>아니요</Btn>
+            <Btn onClick={() => (logout(), nav('/f-s00'))}>네</Btn>
+          </Row>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 export const useFarm = () => useApi<MyFarm>('/api/farmer/me/farm');
