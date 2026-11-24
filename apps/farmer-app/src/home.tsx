@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
 import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
+import { clearSent, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
 
 export { CowList } from './shared';
 
@@ -47,8 +48,34 @@ const TASK_TO: Record<TaskKind, (ref: number | null) => string> = {
   ear_tag: () => '/f-s18',
 };
 
+/** 보내기 대기열 안내 (SOS-QUEUE): 보냄 · 대기 중 · 3회 실패 */
+function Outbox() {
+  const q = useQueue();
+  const n = useSent();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => clearSent, []); // 홈을 떠나면 "보냈어요" 안내는 지운다
+  const wait = q.filter((x) => !x.failed).length;
+  const bad = q.filter((x) => x.failed).length;
+  return (
+    <>
+      {n > 0 && <Info tone="ok">✓ 기록을 보냈어요 (기다리던 기록 {n}건)</Info>}
+      {wait > 0 && <Info tone="w">보내지 못한 기록 {wait}건이 있어요. 인터넷이 연결되면 바로 보내 드릴게요.</Info>}
+      {bad > 0 && (
+        <Info tone="d">
+          아직 기록을 보내지 못했어요. 다시 보내 주세요.
+          <Row>
+            <Btn v="s" disabled={busy} onClick={() => (setBusy(true), void retryFailed().finally(() => setBusy(false)))}>다시 보내기</Btn>
+            <Btn v="d" href="tel:15889060">전화로 다시 알리기</Btn>
+          </Row>
+        </Info>
+      )}
+    </>
+  );
+}
+
 export function FS01() {
   useServerPrefs();
+  useFarmCache();
   const h = useApi<Home>('/api/farmer/home');
   const d = h.data;
   useEffect(() => {
@@ -59,6 +86,7 @@ export function FS01() {
     <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, 오늘 할 일이 ${d.task_count}개 있어요. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
       <Status q={h} />
       {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘도 <em>좋은 하루</em> 되세요</>}</H>}
+      <Outbox />
       {d?.tasks.map((t) => (
         <Card key={t.tasks_id} to={TASK_TO[t.kind]?.(t.ref_id)}>
           <Pill tone="w">기한 알림{t.d_day != null && ` · D-${t.d_day}`}</Pill>

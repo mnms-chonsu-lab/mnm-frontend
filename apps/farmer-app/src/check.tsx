@@ -5,6 +5,7 @@ import {
 } from '@mnm/api-client';
 import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Muted, P, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
 import { CowList, PART, cowDesc, cowName, flow, kday, useCows, useId, useSend } from './shared';
+import { enqueue } from './outbox';
 
 /** 소 상태 확인 흐름 공통 틀 */
 const Check = ({ title = '소 상태 확인', children }: { title?: string; children: ReactNode }) => (
@@ -317,7 +318,7 @@ const Check1 = ({ on, set, children }: { on: boolean; set: (v: boolean) => void;
   <label><input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> <b>{children}</b></label>
 );
 
-/** 승인 → 전달. 같은 화면에서 다시 눌러도 한 번만 전달된다(Idempotency-Key). 인터넷이 없으면 F-E04 */
+/** 승인 → 전달. 같은 화면에서 다시 눌러도 한 번만 전달된다(Idempotency-Key). 인터넷이 없으면 대기열에 넣고 F-E04 */
 function useDeliver(route: 'call' | 'coop' | 'web' | 'gov', opts: { send_to_coop?: boolean; share_phone: boolean }, after: (d: Delivered) => string) {
   const id = useId();
   const nav = useNavigate();
@@ -327,8 +328,10 @@ function useDeliver(route: 'call' | 'coop' | 'web' | 'gov', opts: { send_to_coop
       const d = await api<Delivered>('/api/farmer/deliveries', { method: 'POST', body: { symptom_report_id: Number(id), route, ...opts }, headers: { 'Idempotency-Key': key } });
       nav(after(d), { replace: true });
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'NET-OFF') nav('/f-e04');
-      else throw e;
+      if (!(e instanceof ApiError && e.code === 'NET-OFF')) throw e;
+      // 승인 시각은 지금 누른 시각으로, 같은 키로 나중에 한 번만 보낸다 (SOS-OFFLINE ③)
+      enqueue({ key, symptom_report_id: Number(id), route, ...opts, approved_at: new Date().toISOString() });
+      nav('/f-e04?queued=1');
     }
   });
 }
@@ -439,7 +442,7 @@ export function FS14P() {
       <H center>이제 <span className="red">전화로 신고</span>해 주세요</H>
       <CallNumber />
       <CallBtn />
-      <Btn v="s" to="/f-e04">통화할 때 말할 내용 보기</Btn>
+      <Btn v="s" to="/f-e04?from=call">통화할 때 말할 내용 보기</Btn>
       {cc && <Info tone="ok"><b>{cc}</b>에도 기록을 보냈어요</Info>}
       <NowDo disease={q.get('d')} max={2} />
       <Btn v="t" to="/f-s01">처음으로</Btn>

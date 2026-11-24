@@ -6,8 +6,10 @@ import * as diary from './diary';
 import * as report from './report';
 import * as check from './check';
 import * as popups from './popups';
+import { startOutbox } from './outbox';
 
 setMocks(farmerMocks);
+startOutbox();
 
 // 화면 ID는 화면설계서 기준. 경로는 ID 소문자(/f-s01)
 const screens: Screen[] = [
