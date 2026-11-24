@@ -232,7 +232,27 @@ function speak() {
   u.lang = 'ko-KR';
   speechSynthesis.speak(u);
 }
+/* ---------- 토스트: 화면 아래 잠깐 뜨는 안내 (3초) ---------- */
+let toastMsg = '';
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+const toastSubs = new Set<() => void>();
+const setToast = (m: string) => {
+  toastMsg = m;
+  toastSubs.forEach((f) => f());
+};
+export function toast(msg: string) {
+  clearTimeout(toastTimer);
+  setToast(msg);
+  toastTimer = setTimeout(() => setToast(''), 3000);
+}
+function Toast() {
+  const m = useSyncExternalStore((f) => (toastSubs.add(f), () => void toastSubs.delete(f)), () => toastMsg);
+  return m ? <div className="toast" role="status">{m}</div> : null;
+}
+
+// 소리 안내가 없는 휴대폰도 버튼은 그대로 두고 누르면 알린다 (TTS-NA)
 const toggleSpeak = () => {
+  if (!canSpeak) return toast('이 휴대폰에서는 소리 안내를 쓸 수 없어요.');
   setPrefs({ speak: !prefs.speak });
   if (prefs.speak) speak();
   else if (canSpeak) speechSynthesis.cancel();
@@ -266,7 +286,7 @@ export function PrefsCard() {
       <b>글자 크기</b>
       <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
       <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
-      {canSpeak && <Switch label="소리 안내" on={!!p.speak} onClick={toggleSpeak} />}
+      <Switch label="소리 안내" on={!!p.speak && canSpeak} onClick={toggleSpeak} />
     </div>
   );
 }
@@ -304,9 +324,10 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
         {back && <button type="button" className="bk" aria-label="뒤로" onClick={go(-1)}>‹</button>}
         <span className="tt">{title}</span>
         <FontBtn />
-        {canSpeak && <button type="button" className={p.speak ? 'on' : ''} aria-pressed={!!p.speak} onClick={toggleSpeak}>듣기</button>}
+        <button type="button" className={p.speak && canSpeak ? 'on' : ''} aria-pressed={!!p.speak && canSpeak} onClick={toggleSpeak}>듣기</button>
       </header>
       <main className="body">{children}</main>
+      <Toast />
       {(report || tab) && (
         <footer className="foot">
           {report && <div className="fix"><Btn v="d" to="/f-p01">바로 신고 1588-9060</Btn></div>}
