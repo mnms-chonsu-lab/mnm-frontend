@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
-import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage, useSearchParams } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 import { clearSent, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
 
@@ -10,6 +10,7 @@ const CONSENTS = ['개인정보 수집·이용 동의 (필수)', '기록 전달 
 
 export function FS00() {
   const goNext = useGoNext('/f-s01');
+  const expired = useSearchParams()[0].get('expired');
   const [farmNo, setFarmNo] = useState('');
   const [phone, setPhone] = useState('');
   const [agree, setAgree] = useState(CONSENTS.map(() => false));
@@ -22,6 +23,7 @@ export function FS00() {
     <Phone title="촌수의사" back={false} say="농장식별번호와 휴대폰 번호를 넣어 주세요.">
       <Form onSubmit={submit}>
         <H>농장식별번호로<br /><em>시작해요</em></H>
+        {expired && <Info tone="w">다시 로그인해 주세요. 쓰던 기록은 그대로 있어요.</Info>}
         <Input label="농장식별번호 6자리" inputMode="numeric" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(e.target.value)} err={err.farm_no} />
         <Input label="휴대폰 번호 010-0000-0000" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
         <Err>{err._}</Err>

@@ -245,6 +245,31 @@ export function toast(msg: string) {
   setToast(msg);
   toastTimer = setTimeout(() => setToast(''), 3000);
 }
+/* ---------- 안내 바텀시트 (오류 시트): openSheet({ title, body, actions }) ---------- */
+export type SheetAction = [label: string, run: () => void, v?: 'p' | 's' | 't' | 'd'];
+type SheetSpec = { title: string; body?: string; actions: SheetAction[] } | null;
+let sheet: SheetSpec = null;
+const sheetSubs = new Set<() => void>();
+export const openSheet = (s: SheetSpec) => {
+  sheet = s;
+  sheetSubs.forEach((f) => f());
+};
+function SheetHost() {
+  const s = useSyncExternalStore((f) => (sheetSubs.add(f), () => void sheetSubs.delete(f)), () => sheet);
+  useEffect(() => () => openSheet(null), []); // 화면을 옮기면 시트를 닫는다
+  if (!s) return null;
+  const close = () => openSheet(null);
+  return (
+    <div className="dim bottom" onClick={close}>
+      <div className="sheet" role="alertdialog" aria-modal onClick={(e) => e.stopPropagation()}>
+        <H>{s.title}</H>
+        {s.body && <P>{s.body}</P>}
+        {s.actions.map(([t, run, v = 's']) => <Btn key={t} v={v} onClick={() => (close(), run())}>{t}</Btn>)}
+      </div>
+    </div>
+  );
+}
+
 function Toast() {
   const m = useSyncExternalStore((f) => (toastSubs.add(f), () => void toastSubs.delete(f)), () => toastMsg);
   return m ? <div className="toast" role="status">{m}</div> : null;
@@ -344,6 +369,7 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
       </header>
       <main className="body">{children}</main>
       <Toast />
+      <SheetHost />
       {(report || tab) && (
         <footer className="foot">
           {report && <div className="fix"><Btn v="d" to="/f-p01">바로 신고 1588-9060</Btn></div>}
@@ -497,8 +523,22 @@ export function usePage<T>(path: string): Query & { items: T[]; more?: () => voi
   return { items, err, loading, reload: () => setN((x) => x + 1), more: next && !loading ? () => load(next) : undefined };
 }
 
+/** 농가 앱: 볼 수 없는 화면(403)이면 홈으로 + 토스트, 늦어지면(TIMEOUT) [다시 시도] 시트 (오류·예외 AUTH-403·TIMEOUT) */
+function FarmerErr({ q }: { q: Query }) {
+  const nav = useNavigate();
+  const e = q.err!;
+  useEffect(() => {
+    if (e.status === 403) {
+      toast('볼 수 없는 화면이에요.');
+      nav('/f-s01', { replace: true });
+    } else if (e.code === 'TIMEOUT') openSheet({ title: '조금 늦어지고 있어요', body: '다시 시도해 주세요.', actions: [['다시 시도', q.reload, 'p'], ['닫기', () => {}, 't']] });
+  }, [e]); // eslint-disable-line react-hooks/exhaustive-deps
+  return e.status === 403 ? null : <Info tone="d"><span role="alert">{e.message}</span> <Btn v="t" onClick={q.reload}>다시 시도</Btn></Info>;
+}
+
 /** 불러오는 중 · 오류([다시 시도]) · 빈 목록 안내. empty 문구는 빈 목록일 때만 넘긴다 */
 export function Status({ q, empty }: { q: Query; empty?: string | false }) {
+  if (q.err && isFarmer()) return <FarmerErr q={q} />;
   if (q.err) return <Info tone="d"><span role="alert">{errText(q.err)}</span> <Btn v="t" onClick={q.reload}>다시 시도</Btn></Info>;
   if (q.loading) return <Muted>불러오는 중…</Muted>;
   return empty ? <Muted>{empty}</Muted> : null;
@@ -556,6 +596,7 @@ export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: s
   const goNext = useGoNext(home);
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
+  const expired = useSearchParams()[0].get('expired');
   const { submit, err, busy } = useAuthForm(async () => {
     const s = await login(id, pw);
     if (s.role !== role) {
@@ -569,6 +610,7 @@ export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: s
     <Center>
       <Form onSubmit={submit}>
         <H>촌수의사 <Muted>{sub}</Muted></H>
+        {expired && <Info tone="w">로그인이 만료됐어요. 다시 로그인하면 보던 화면으로 돌아가요.</Info>}
         <Input label="아이디" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} err={err.login_id} />
         <Input label="비밀번호" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} err={err.password} />
         <Err>{err._}</Err>
@@ -638,7 +680,14 @@ export function mount(screens: Screen[], home: string, notFound: string, auth?: 
   const NotFound = screens.find(([id]) => id === notFound)![2];
   // shortcut: API 주소가 없는 빌드(화면 검토용 Vercel 배포)는 로그인 없이 모든 화면을 연다, 배포에 API 주소·CORS가 정해지면 조건을 없앤다
   const guard = apiReady ? auth : undefined;
-  if (guard) setOnExpired(() => location.assign(toLogin(guard, location.pathname + location.search)));
+  if (guard) {
+    setOnExpired(() => {
+      // 새로고침하지 않고 주소만 바꿔 메모리의 쓰던 기록(정리 초안·소 상태 확인)을 지킨다. 로그인하면 보던 화면으로
+      if (location.pathname === path(guard.login)) return;
+      history.pushState(null, '', toLogin(guard, location.pathname + location.search) + '&expired=1');
+      dispatchEvent(new PopStateEvent('popstate'));
+    });
+  }
   createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>

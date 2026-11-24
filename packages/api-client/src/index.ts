@@ -70,8 +70,27 @@ export const setOnExpired = (f: () => void) => {
 };
 
 /* ---------- 호출 ---------- */
-/** `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다. body가 FormData면 multipart로 보낸다 */
-export async function api<T>(path: string, { method = 'GET', body, headers }: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+const TIMEOUT_MS = 15_000; // 일반 응답 지연 기준 (오류·예외 TIMEOUT)
+const GET_RETRY_MS = [1000, 3000]; // 조회(GET)만 시간이 지나면 1초·3초 뒤 다시 (저장·전달은 자동 재시도 금지)
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다. body가 FormData면 multipart로 보낸다.
+ * 15초 안에 답이 없으면 TIMEOUT (조회는 두 번 더 해 본 뒤)
+ */
+export async function api<T>(path: string, opts: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+  for (const delay of opts.method && opts.method !== 'GET' ? [] : GET_RETRY_MS) {
+    try {
+      return await call<T>(path, opts);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.code === 'TIMEOUT')) throw e;
+      await wait(delay);
+    }
+  }
+  return call<T>(path, opts);
+}
+
+async function call<T>(path: string, { method = 'GET', body, headers }: { method?: string; body?: unknown; headers?: Record<string, string> }): Promise<T> {
   if (!apiReady) {
     const m = mocks[path.split('?')[0]];
     if (method === 'GET' && m !== undefined) return m as T;
@@ -80,6 +99,8 @@ export async function api<T>(path: string, { method = 'GET', body, headers }: { 
   const token = getSession()?.access_token;
   const form = body instanceof FormData;
   let res: Response;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     res = await fetch(BASE + path, {
       method,
@@ -89,9 +110,13 @@ export async function api<T>(path: string, { method = 'GET', body, headers }: { 
         ...headers,
       },
       body: body === undefined ? undefined : form ? body : JSON.stringify(body),
+      signal: ctl.signal,
     });
   } catch {
+    if (ctl.signal.aborted) throw new ApiError(0, 'TIMEOUT', '조금 늦어지고 있어요. 다시 시도해 주세요.');
     throw new ApiError(0, 'NET-OFF', '인터넷이 연결되지 않았어요. 연결되면 이어서 보낼게요.');
+  } finally {
+    clearTimeout(timer);
   }
   if (res.status === 204) return undefined as T;
   const json = await res.json().catch(() => null);
