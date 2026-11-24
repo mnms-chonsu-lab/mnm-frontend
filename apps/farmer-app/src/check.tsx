@@ -255,7 +255,7 @@ const useSummary = () => {
 function SummaryCard({ s }: { s: Summary }) {
   return (
     <Card>
-      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 && <Pill tone="d">공식 증상 {s.matched_count}개</Pill>}</span>
+      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 ? <Pill tone="d">공식 증상 {s.matched_count}개</Pill> : <Pill tone="g">해당 없음</Pill>}</span>
       {s.matched.map((m) => <span key={m}>· {m} <Official /></span>)}
       {s.observed_text && <span>· 본 것: {s.observed_text}</span>}
       <span>· 처음 본 날 {kday(s.found_date)}{s.head_count != null && ` · ${s.head_count}마리`}{s.barn && ` · ${s.barn}`}</span>
