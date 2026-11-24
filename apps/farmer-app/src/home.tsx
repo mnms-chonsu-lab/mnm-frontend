@@ -29,7 +29,7 @@ export function FS00() {
           {CONSENTS.map((x, i) => (
             <Row key={x}>
               <label><input type="checkbox" checked={agree[i]} onChange={() => setAgree(agree.map((v, j) => (j === i ? !v : v)))} /> {x}</label>
-              <Link className="more" to="/f-p03">보기</Link>
+              <Link className="more" to={`/f-p03?i=${i}`}>보기</Link>
             </Row>
           ))}
         </Card>
