@@ -42,6 +42,8 @@ export type InboxList = {
   page: Page<InboxRow>;
 };
 
+/** 일지 한 건 (최근 14일 일지 · 농장 기본 정보) */
+export type DiaryItem = { date: string; category: string; value: string | null; vaccine_type: string | null; cow_tag4: string | null };
 /** 행동 비율(%, 참고) */
 export type BehaviorRatio = { stand: number; lie: number; eat: number };
 /** RCV-02 한 장 요약 */
@@ -66,8 +68,9 @@ export type InboxDetail = {
     video: { media_id: number; url: string | null; ratio: BehaviorRatio | null } | null;
   } | null;
   history: { history_report_id: number; type: string; fields: Record<string, string | null>; missing: string[]; due_date: string | null; d_day: number | null; status: string } | null;
-  basics: { vaccine: string | null; disinfection: string | null; visit: string | null } | null;
-  diary: { date: string; category: string; value: string | null; cow_tag4: string | null }[];
+  /** 일지에서 분류별 가장 최근 한 건 (접종·소독·출입) */
+  basics: { vaccine: DiaryItem | null; disinfection: DiaryItem | null; visit: DiaryItem | null } | null;
+  diary: DiaryItem[];
   timeline: { status: ReceiverStatus | null; result: ReceiverResult | null; memo: string | null; at: string; user_name: string | null; org_name: string | null }[];
   guides: { source_doc: string; revised_at: string | null }[];
 };

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   api, ApiError, logout, qs, setMocks,
-  type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
+  type DiaryItem, type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
 } from '@mnm/api-client';
 import { receiverMocks } from '@mnm/mocks';
 import {
@@ -41,6 +41,8 @@ const at = (iso: string | null) => {
 const tel = (p: string) => p.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
 /** "2026-11-02" → "11.02" */
 const md = (date: string | null) => (date ? date.slice(5).replace('-', '.') : '-');
+/** 일지 한 건 → "10.08 구제역 백신 전체" (없으면 -) */
+const entry = (e: DiaryItem | null) => (e ? [md(e.date), e.vaccine_type, e.value].filter(Boolean).join(' ') : '-');
 
 /** 로그인 후 화면 공통 틀: 안내 띠 + 상단 메뉴 (소속 · 이름은 AUTH-03) */
 function Page({ children }: { children: ReactNode }) {
@@ -179,13 +181,13 @@ function Detail({ id }: { id: string }) {
         <Card>
           <b>농장 기본 정보</b>
           <span>{x.farm.address} · 사육 {x.farm.head_count ?? '-'}두</span>
-          {x.basics && <span>최근 접종 {x.basics.vaccine ?? '-'} · 최근 소독 {x.basics.disinfection ?? '-'} · 외부 출입 {x.basics.visit ?? '-'}</span>}
+          {x.basics && <span>최근 접종 {entry(x.basics.vaccine)} · 최근 소독 {entry(x.basics.disinfection)} · 외부 출입 {entry(x.basics.visit)}</span>}
         </Card>
       </Row>
       <Card>
         <b>최근 14일 일지</b>
         {x.diary.length === 0 && <Muted>기록이 없어요.</Muted>}
-        {x.diary.map((e, i) => <span key={i}>{md(e.date)} {e.category}{e.cow_tag4 && ` · ${e.cow_tag4}번`} {e.value}</span>)}
+        {x.diary.map((e, i) => <span key={i}>{md(e.date)} {e.category}{e.cow_tag4 && ` · ${e.cow_tag4}번`} {[e.vaccine_type, e.value].filter(Boolean).join(' ')}</span>)}
       </Card>
       <Row>
         <Card>
