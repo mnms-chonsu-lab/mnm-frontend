@@ -129,7 +129,7 @@ export function FS17() {
   const f = useFarm();
   const d = f.data;
   return (
-    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글자 크기와 선명한 화면을 바꿀 수 있어요.">
+    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글씨 크기와 선명한 화면을 바꿀 수 있어요.">
       <Status q={f} />
       {d && (
         <KV rows={[
