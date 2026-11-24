@@ -238,14 +238,14 @@ const toggleSpeak = () => {
   else if (canSpeak) speechSynthesis.cancel();
 };
 
-/** 헤더 [가] 버튼. 누를 때마다 다음 글자 크기 */
+/** 헤더 [글씨 크기] 버튼. 누를 때마다 다음 글자 크기 */
 export function FontBtn() {
   const p = usePrefs();
   const steps = fontSteps();
   const i = fontStep(p.font);
   return (
-    <button type="button" className="fz" aria-label={`글자 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
-      가 {steps[i][0]}
+    <button type="button" className="fz" aria-label={`글씨 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
+      글씨 크기 <span style={{ whiteSpace: 'nowrap' }}>{steps[i][0]}</span>
     </button>
   );
 }
@@ -263,7 +263,7 @@ export function PrefsCard() {
   const steps = fontSteps();
   return (
     <div className="card">
-      <b>글자 크기</b>
+      <b>글씨 크기</b>
       <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
       <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
       {canSpeak && <Switch label="소리 안내" on={!!p.speak} onClick={toggleSpeak} />}
