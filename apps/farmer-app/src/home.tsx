@@ -6,12 +6,19 @@ import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerP
 export { CowList } from './shared';
 
 const CONSENTS = ['개인정보 수집·이용 동의 (필수)', '기록 전달 동의 (필수)', '처리 위탁 동의 (필수)'];
+// [보기](F-P03)는 다른 경로라 돌아오면 로그인 화면이 새로 그려진다. 넣던 값·체크를 기억해 두고 되살린다 (새로고침하면 처음부터)
+const memo: { farmNo?: string; phone?: string; agree?: boolean[] } = {};
+/** useState + memo[key]에 같이 적기 */
+function useMemoState<K extends keyof typeof memo>(key: K, init: NonNullable<(typeof memo)[K]>) {
+  const [v, setV] = useState(() => memo[key] ?? init);
+  return [v, (x: NonNullable<(typeof memo)[K]>) => setV((memo[key] = x))] as const;
+}
 
 export function FS00() {
   const goNext = useGoNext('/f-s01');
-  const [farmNo, setFarmNo] = useState('');
-  const [phone, setPhone] = useState('');
-  const [agree, setAgree] = useState(CONSENTS.map(() => false));
+  const [farmNo, setFarmNo] = useMemoState('farmNo', '');
+  const [phone, setPhone] = useMemoState('phone', '');
+  const [agree, setAgree] = useMemoState('agree', CONSENTS.map(() => false));
   const all = agree.every(Boolean);
   const { submit, err, busy } = useAuthForm(async () => {
     await farmerLogin(farmNo, phone);
