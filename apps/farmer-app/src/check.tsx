@@ -464,7 +464,7 @@ export function FS14W() {
       {x && x.photos.some((p) => p.url) && (
         <Row>{x.photos.filter((p) => p.url).map((p) => <Btn key={p.media_id} v="s" href={p.url!}>{PART[p.part] ?? p.part} 사진 열기</Btn>)}</Row>
       )}
-      <Info tone="w">급하면 전화가 더 빨라요 · 1588-9060</Info>
+      <Info tone="w"><a href="tel:15889060">급하면 전화가 더 빨라요 · 1588-9060</a></Info>
       <NowDo disease={q.get('d')} max={1} />
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Check>
