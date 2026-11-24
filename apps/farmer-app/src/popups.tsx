@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { api, ApiError, type Cow, type CowLookup, type HistoryReport, type MyFarm } from '@mnm/api-client';
 import { Btn, Card, Chips, Err, H, Info, Input, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
 import { CallBtn, CallNumber } from './check';
-import { cowName, flow, kday, kfull, tagFmt, useCows, useId, useSend } from './shared';
+import { cowName, flow, kday, kfull, tagFmt, tel, useCows, useId, useSend } from './shared';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
 const Popup = ({ title, banner, children }: { title: string; banner?: string; children: ReactNode }) => (
@@ -201,7 +201,9 @@ export function FP05() {
 export function FP06() {
   const nav = useNavigate();
   const [phone, setPhone] = useState('');
+  const [ask, setAsk] = useState(false); // 로그인 번호가 바뀌므로 확인 모달 후 저장
   const { submit, err, busy } = useSend(async () => {
+    setAsk(false);
     await api<MyFarm>('/api/farmer/me/farm', { method: 'PATCH', body: { phone } });
     nav(-1);
   });
@@ -211,7 +213,17 @@ export function FP06() {
       <Input label="새 휴대폰 번호 010-0000-0000" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
       <Info tone="w">바꾼 번호로 다음에 로그인해요. 접수자에게 보이는 번호도 함께 바뀌어요.</Info>
       <Err>{err._}</Err>
-      <Btn onClick={submit} disabled={busy || digits(phone).length < 10}>바꾸기</Btn>
+      <Btn onClick={() => setAsk(true)} disabled={busy || digits(phone).length < 10}>바꾸기</Btn>
+      {ask && (
+        <Modal onClose={() => setAsk(false)}>
+          <H>로그인 번호가 바뀌어요</H>
+          <P>다음 로그인부터 <b>{tel(digits(phone))}</b>로 로그인해요. 접수자에게 보이는 번호도 함께 바뀌어요.</P>
+          <Row>
+            <Btn v="t" onClick={() => setAsk(false)}>취소</Btn>
+            <Btn onClick={submit} disabled={busy}>바꾸기</Btn>
+          </Row>
+        </Modal>
+      )}
     </Popup>
   );
 }
