@@ -153,12 +153,19 @@ export function FP05() {
     await api(`/api/farmer/cows/${id}`, { method: 'PATCH', body: { barn: barn ?? c?.barn ?? '' } });
     nav(-1);
   });
+  // 직접 입력한 소: 귀표로 이력제를 다시 조회해 그 값으로 바꾼다 (FARM-24 refresh_trace)
+  const [refreshed, setRefreshed] = useState(false);
+  const refresh = useSend(async () => {
+    await api(`/api/farmer/cows/${id}`, { method: 'PATCH', body: { refresh_trace: true } });
+    setRefreshed(true);
+    q.reload();
+  });
   const remove = useSend(async () => {
     const withReport = report && reason !== '기타';
     const r = await api<{ history_report_id: number | null }>(`/api/farmer/cows/${id}`, { method: 'PATCH', body: { remove_reason: reason, create_report: withReport } });
     nav(r.history_report_id ? `${reason === '폐사' ? '/f-s04d' : '/f-s04m'}?id=${r.history_report_id}` : '/f-s18', { replace: true });
   });
-  const err = { ...save.err, ...remove.err };
+  const err = { ...save.err, ...remove.err, ...refresh.err };
   return (
     <Popup title="내 소">
       <Status q={q} />
@@ -169,10 +176,13 @@ export function FP05() {
           <KV rows={[
             ['귀표', tagFmt(c.tag_full)],
             ['품종·성별', [c.breed, c.sex].filter(Boolean).join(' · ') || '-'],
-            ['출생', kfull(c.birth_date)],
+            // 직접 입력은 연·월만 받아 일이 1일로 저장된다 → 일은 보이지 않는다
+            ['출생', c.source === 'manual' && c.birth_date ? `${c.birth_date.slice(0, 4)}년 ${Number(c.birth_date.slice(5, 7))}월` : kfull(c.birth_date)],
             ['구제역 백신 최종', c.vaccine_last_date ? `${kday(c.vaccine_last_date)}${c.vaccine_last_order ? ` (${c.vaccine_last_order}차)` : ''}` : '-'],
-            ['불러온 곳', c.source === 'trace' ? `축산물이력제${c.trace_checked_at ? ' · ' + kday(c.trace_checked_at.slice(0, 10)) : ''}` : '직접 입력'],
+            ...(c.source === 'trace' ? [['불러온 곳', `축산물이력제${c.trace_checked_at ? ' · ' + kday(c.trace_checked_at.slice(0, 10)) : ''}`] as [string, string]] : []),
           ]} />
+          {c.source === 'manual' && <Btn v="s" onClick={refresh.submit} disabled={refresh.busy}>{refresh.busy ? '불러오는 중…' : '이력제에서 다시 불러오기'}</Btn>}
+          {refreshed && c.source === 'trace' && <Info tone="ok">축산물이력제에서 불러왔어요.</Info>}
           <Input top label="축사" value={barn ?? c.barn ?? ''} maxLength={50} onChange={(e) => setBarn(e.target.value)} err={err.barn} />
           {out ? (
             <Card>
