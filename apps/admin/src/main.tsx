@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  api, apiReady, logout, qs, setMocks,
-  type AdminUser, type AdminUserRow, type AuditLog, type Guide, type GuideContent, type GuideKind, type GuideStatus, type Health, type HealthStatus,
+  api, ApiError, apiReady, logout, qs, setMocks,
+  type AdminDelivery, type AdminUser, type AdminUserRow, type AiMetrics, type AuditLog, type EtlJob, type EtlJobName, type EtlRun, type InferenceLog, type Guide, type GuideContent, type GuideKind, type GuideStatus, type Health, type HealthStatus,
   type Inbox, type Org, type OrgType, type Page as ApiPage, type Role, type TodayMetrics, type UserStatus,
 } from '@mnm/api-client';
 import { adminMocks } from '@mnm/mocks';
@@ -72,8 +72,13 @@ const TempPw = ({ title, loginId, pw, onClose }: { title: string; loginId: strin
   </Modal>
 );
 
-/** 아직 서버에 연결하지 않은 화면(MVP 제외) 표시 */
-const Sample = () => (apiReady ? <Info tone="w">아직 서버에 연결하지 않은 화면이에요. 아래는 예시예요.</Info> : null);
+/** 아직 서버 API가 없는 부분 표시 */
+const Sample = ({ what }: { what: string }) => (apiReady ? <Info tone="w">{what}는 아직 서버에 연결하지 않았어요. 아래는 예시예요.</Info> : null);
+const pct = (r: number | null | undefined) => (r == null ? '-' : (r * 100).toFixed(1) + '%');
+const sec = (ms: number | null | undefined) => (ms == null ? '-' : (ms / 1000).toFixed(1) + 's');
+/** 기간 칩: [이름, 며칠] (null = 전체 기간) */
+const PERIODS: [string, number | null][] = [['최근 7일', 7], ['최근 30일', 30], ['전체 기간', null]];
+const useFrom = (days: number | null) => useMemo(() => (days ? new Date(Date.now() - days * 864e5).toISOString() : undefined), [days]);
 
 /* ---------- A-S01 대시보드 (ADM-01) ---------- */
 const COMPONENT: Record<string, [string, To?]> = { api: ['API 서버'], db: ['DB'], ai: ['AI 추론', '/a-s07'], etl: ['공공데이터 수집', '/a-s06'] };
@@ -402,23 +407,61 @@ function OrgEdit({ org, onSaved }: { org?: Org; onSaved: (o: Org) => void }) {
   );
 }
 
-/* ---------- A-S04 신고·전달 현황 (ADM-06, MVP 제외) ---------- */
-const AS04 = () => (
-  <Page>
-    <H>신고·전달 현황</H>
-    <Sample />
-    <Chips items={['최근 7일', '전체 경로', '전체 상태', '전달 실패 1']} on={0} />
-    <Tbl
-      head={['승인 시각', '농가', '종류', '경로', '받는 곳', '상태', '전달']}
-      rows={[
-        ['11.02 09:42', '김한우', '소 상태 기록', '전화', '신고센터', '새로 도착', '도착'],
-        ['11.02 08:15', '이영수', '소 상태 기록', '축협', '홍성축협 방역팀', '확인 중', '도착'],
-        ['11.01 20:10', '김한우', '출생 신고 초안', '축협 부탁', '홍성축협 이력', '신고 완료', '대기 후 도착'],
-        ['11.01 17:20', '최민호', '소 상태 기록', '인터넷 신고서', '홍성축협 방역팀', '-', <><b className="red">실패</b> <u>다시 보내기</u></>],
-      ]}
-    />
-  </Page>
-);
+/* ---------- A-S04 신고·전달 현황 (ADM-06) ---------- */
+const KIND: Record<string, string> = { symptom: '소 상태 기록', birth: '출생 신고 초안', death: '폐사 신고 초안', move: '이동 신고 초안' };
+const ROUTES: [AdminDelivery['route'] | '', string][] = [['', '전체 경로'], ['call', '전화'], ['coop', '축협'], ['web', '인터넷 신고서'], ['gov', '시군청']];
+const ROUTE_NAME = Object.fromEntries(ROUTES) as Record<string, string>;
+const STATES: [AdminDelivery['status'] | '', string][] = [['', '전체 상태'], ['delivered', '도착'], ['queued', '대기 중'], ['failed', '전달 실패']];
+const RECEIVER: Record<string, string> = { new: '새로 도착', checking: '확인 중', done: '처리 완료' };
+
+/** 대기·실패 건 [다시 보내기]. 이미 도착했으면(409) 목록만 새로 고친다 */
+function Retry({ id, onDone }: { id: number; onDone: () => void }) {
+  const f = useAuthForm(async () => {
+    try {
+      await api(`/api/admin/deliveries/${id}/retry`, { method: 'POST' });
+    } catch (e) {
+      if (!(e instanceof ApiError && e.code === 'CONFLICT-409')) throw e;
+    }
+    onDone();
+  }, errText);
+  return <><Btn v="t" onClick={() => f.submit()} disabled={f.busy}>다시 보내기</Btn><Err>{f.err._}</Err></>;
+}
+
+function AS04() {
+  const [p, setP] = useState(0);
+  const [r, setR] = useState(0);
+  const [s, setS] = useState(0);
+  const from = useFrom(PERIODS[p][1]);
+  const list = usePage<AdminDelivery>('/api/admin/deliveries' + qs({ from, route: ROUTES[r][0], status: STATES[s][0] }));
+  const rows = list.items;
+  return (
+    <Page>
+      <H>신고·전달 현황</H>
+      <Chips items={PERIODS.map(([n]) => n)} on={p} onPick={setP} />
+      <Chips items={ROUTES.map(([, n]) => n)} on={r} onPick={setR} />
+      <Chips items={STATES.map(([, n]) => n)} on={s} onPick={setS} />
+      <Status q={list} empty={rows.length === 0 && '이 조건의 전달 기록이 없어요.'} />
+      {rows.length > 0 && (
+        <Tbl
+          head={['승인 시각', '농가', '종류', '경로', '받는 곳', '처리 상태', '전달']}
+          rows={rows.map((d) => [
+            at(d.approved_at),
+            d.farmer_name,
+            KIND[d.kind] ?? d.kind,
+            ROUTE_NAME[d.route] ?? d.route,
+            [d.org_name, d.cc_org_name].filter(Boolean).join(' · ') || '-',
+            d.receiver_status ? RECEIVER[d.receiver_status] : '-',
+            d.status === 'delivered' ? `도착 ${at(d.received_at)}` : (
+              <><b className={d.status === 'failed' ? 'red' : ''}>{d.status === 'failed' ? '실패' : '대기 중'}</b> <Retry id={d.deliveries_id} onDone={list.reload} /></>
+            ),
+          ])}
+        />
+      )}
+      {list.more && <Btn v="t" onClick={list.more}>더 보기</Btn>}
+      <Muted>요약·신고서 내용은 이 화면에 보이지 않아요.</Muted>
+    </Page>
+  );
+}
 
 /* ---------- A-S05 안내 문구 (ADM-07 · ADM-08) ---------- */
 const KINDS: [GuideKind, string][] = [['question', '증상 질문'], ['photo_guide', '촬영 안내'], ['action', '질병별 조치'], ['form_field', '신고 항목'], ['summary', '요약'], ['clause', '조항']];
@@ -538,54 +581,107 @@ function GuideEdit({ kind, g, onSaved }: { kind: GuideKind; g?: Guide; onSaved: 
   );
 }
 
-/* ---------- A-S06 · A-S07 (ADM-09~11, MVP 제외) ---------- */
-const AS06 = () => (
-  <Page>
-    <H>공공데이터 수집 현황</H>
-    <Sample />
-    <Tbl
-      head={['데이터', '주기', '마지막 성공', '건수(소)', '상태', '']}
-      rows={[
-        ['가축 질병 발생 정보', '매일 06:00', '11.14 06:00', '1,284', '정상', '지금 수집'],
-        ['사육규모별 농장 통계', '매월 1일', '11.01 06:10', '3,512', '정상', '지금 수집'],
-        ['거점소독시설', '매일 06:00', '11.13 06:00', '214', '실패 · 직전 데이터 유지', '지금 수집'],
-      ]}
-    />
-    <Card>
-      <b>실행 기록 · 거점소독시설</b>
-      <span>11.14 06:00 실패 — API 응답 시간 초과 (3회 재시도)</span>
-      <span>11.13 06:00 성공 — 214건 / region_code 변환 실패 0</span>
-    </Card>
-  </Page>
-);
+/* ---------- A-S06 공공데이터 수집 현황 (ADM-09) ---------- */
+const JOB: Record<EtlJobName, string> = { outbreak: '가축 질병 발생 정보', farm_scale: '사육규모별 농장 통계', disinfection_facility: '거점소독시설' };
+const SCHEDULE: Record<EtlJob['schedule'], string> = { daily: '매일', monthly: '매월' };
+const RUN: Record<EtlRun['status'], string> = { requested: '수집 요청됨', running: '수집 중', success: '정상', failed: '실패 · 직전 데이터 유지' };
 
-const AS07 = () => (
-  <Page>
-    <H>모델·AI 로그</H>
-    <Sample />
-    <Tbl
-      head={['모델', '운영 버전', '지표', '통과 기준', '후보', '']}
-      rows={[
-        ['부위 일치 (SigLIP 2)', 'v1 · 26.11.10', 'Acc 0.938 · F1 0.930', 'Acc ≥ 0.85', 'v2 Acc 0.951', <><u>승격</u> · <u>되돌리기</u></>],
-        ['행동 인식 (YOLO11s)', 'v1 · 26.11.08', 'Macro F1 0.857', '클래스별 P·R ≥ 0.8', '-', '-'],
-      ]}
-    />
-    <Card><span>부위 일치 대체 경로 (OpenAI Vision) · 현재 <b>꺼짐</b> <u>켜기</u></span></Card>
-    <Kpis items={[['호출 (24h)', '412'], ['평균 지연', '1.2s'], ['오류율', '0.8%'], ['평소와 다름 "문제 없음"', '62%']]} />
-    <Tbl
-      head={['시각', '기능', '모델 버전', '결과', '지연']}
-      rows={[
-        ['10:01:22', 'STT', 'whisper-1', '성공', '2.3s'],
-        ['10:01:25', '라우터 LLM', 'gpt-4o-mini', 'intent=diary', '1.8s'],
-        ['09:58:10', '부위 일치', 'siglip2-v1', 'hoof → hoof (0.91)', '0.8s'],
-      ]}
-    />
-  </Page>
-);
+function RunNow({ job, busy, onDone }: { job: EtlJobName; busy: boolean; onDone: () => void }) {
+  const f = useAuthForm(async () => {
+    await api(`/api/admin/etl/jobs/${job}/run`, { method: 'POST' });
+    onDone();
+  }, errText);
+  // 표 줄을 누르면 실행 기록으로 가므로 버튼 누름은 줄까지 올리지 않는다
+  return <span onClick={(e) => e.stopPropagation()}><Btn v="t" onClick={() => f.submit()} disabled={busy || f.busy}>{busy ? '수집 대기 중' : '지금 수집'}</Btn><Err>{f.err._}</Err></span>;
+}
+
+function AS06() {
+  const sel = (useSearchParams()[0].get('job') ?? 'outbreak') as EtlJobName;
+  const jobs = useApi<EtlJob[]>('/api/admin/etl/jobs');
+  const runs = usePage<EtlRun>(`/api/admin/etl/jobs/${sel}/runs`);
+  const list = jobs.data ?? [];
+  return (
+    <Page>
+      <H>공공데이터 수집 현황</H>
+      <Status q={jobs} />
+      {list.length > 0 && (
+        <Tbl
+          head={['데이터', '주기', '마지막 성공', '건수', '최근 실행', '']}
+          rows={list.map((j) => [
+            JOB[j.job] ?? j.job,
+            SCHEDULE[j.schedule] ?? j.schedule,
+            at(j.last_success?.finished_at ?? null),
+            j.last_success?.rows?.toLocaleString() ?? '-',
+            j.last_run ? <b className={j.last_run.status === 'failed' ? 'red' : ''}>{RUN[j.last_run.status]}</b> : '-',
+            <RunNow job={j.job} busy={j.busy} onDone={() => (jobs.reload(), runs.reload())} />,
+          ])}
+          rowTo={(i) => '/a-s06?job=' + list[i].job}
+        />
+      )}
+      <Muted>[지금 수집]은 요청만 남겨요. 수집 서버가 5분 안에 가져가 실행해요. 줄을 누르면 그 작업의 실행 기록을 보여요.</Muted>
+      <Card>
+        <b>실행 기록 · {JOB[sel] ?? sel}</b>
+        <Status q={runs} empty={runs.items.length === 0 && '실행 기록이 없어요.'} />
+        {runs.items.map((x) => (
+          <span key={x.etl_job_run_id}>
+            {at(x.started_at)} {RUN[x.status]}{x.rows != null && ` — ${x.rows.toLocaleString()}건`}{x.error && ` — ${x.error}`}
+          </span>
+        ))}
+        {runs.more && <Btn v="t" onClick={runs.more}>더 보기</Btn>}
+      </Card>
+    </Page>
+  );
+}
+
+/* ---------- A-S07 모델·AI 로그 (ADM-11. ADM-10 모델 관리는 서버 API 없음) ---------- */
+const FEATURES: [string, string][] = [['', '전체 기능'], ['stt', '음성 인식'], ['route', '라우터 LLM'], ['part_check', '부위 일치'], ['behavior', '행동 인식'], ['guide', '안내 문구'], ['summary', '요약']];
+const FEATURE_NAME = Object.fromEntries(FEATURES) as Record<string, string>;
+
+function AS07() {
+  const m = useApi<AiMetrics>('/api/admin/ai-metrics');
+  const [f, setF] = useState(0);
+  const logs = usePage<InferenceLog>('/api/admin/inference-logs' + qs({ feature: FEATURES[f][0] }));
+  const t = m.data?.total;
+  return (
+    <Page>
+      <H>모델·AI 로그</H>
+      <Status q={m} />
+      {m.data && t && (
+        <>
+          <Kpis items={[['호출 (24시간)', t.calls.toLocaleString()], ['평균 지연', sec(t.avg_latency_ms)], ['오류율', pct(t.error_rate)], ['평소와 다름 "문제 없음"', `${pct(m.data.diff_ok_rate)} (${m.data.diff_feedback_count}건)`]]} />
+          <Tbl
+            head={['기능', '호출', '실패', '오류율', '평균 지연', '근거 없음', '입력 오류']}
+            rows={m.data.features.map((x) => [FEATURE_NAME[x.feature ?? ''] ?? x.feature, x.calls, x.failures, pct(x.error_rate), sec(x.avg_latency_ms), x.no_evidence, x.bad_input])}
+          />
+          <Muted>{at(m.data.since)}부터 24시간 · 실패 = AI 서버 응답 503·504</Muted>
+        </>
+      )}
+      <b>호출 로그</b>
+      <Chips items={FEATURES.map(([, n]) => n)} on={f} onPick={setF} />
+      <Status q={logs} empty={logs.items.length === 0 && '이 기능의 호출 기록이 없어요.'} />
+      {logs.items.length > 0 && (
+        <Tbl
+          head={['시각', '기능', '모델 버전', '입력', '결과', '지연', '오류']}
+          rows={logs.items.map((l) => [at(l.at), FEATURE_NAME[l.feature] ?? l.feature, l.model_version ?? '-', l.input_kind ?? '-', l.result_summary ?? '-', sec(l.latency_ms), l.error ? `${l.error}${l.http_status ? ` (${l.http_status})` : ''}` : '-'])}
+        />
+      )}
+      {logs.more && <Btn v="t" onClick={logs.more}>더 보기</Btn>}
+      <b>모델 관리</b>
+      <Sample what="모델 목록·승격·되돌리기(ADM-10)" />
+      <Tbl
+        head={['모델', '운영 버전', '지표', '통과 기준', '후보', '']}
+        rows={[
+          ['부위 일치 (SigLIP 2)', 'v1 · 26.11.10', 'Acc 0.938 · F1 0.930', 'Acc ≥ 0.85', 'v2 Acc 0.951', <><u>승격</u> · <u>되돌리기</u></>],
+          ['행동 인식 (YOLO11s)', 'v1 · 26.11.08', 'Macro F1 0.857', '클래스별 P·R ≥ 0.8', '-', '-'],
+        ]}
+      />
+      <Card><span>부위 일치 대체 경로 (OpenAI Vision) · 현재 <b>꺼짐</b> <u>켜기</u></span></Card>
+    </Page>
+  );
+}
 
 /* ---------- A-S08 감사 로그 (ADM-12) ---------- */
-const PERIODS: [string, number | null][] = [['최근 7일', 7], ['최근 30일', 30], ['전체 기간', null]];
-const ACTIONS: [string, string][] = [['전체 행위', ''], ['열람', 'view'], ['만들기', 'create'], ['수정', 'update'], ['게시', 'publish'], ['비밀번호 초기화', 'password_reset'], ['알림 재발송', 'nudge']];
+const ACTIONS: [string, string][] = [['전체 행위', ''], ['열람', 'view'], ['만들기', 'create'], ['수정', 'update'], ['게시', 'publish'], ['비밀번호 초기화', 'password_reset'], ['알림 재발송', 'nudge'], ['다시 보내기', 'retry'], ['수집 요청', 'run']];
 const ACTION_NAME = Object.fromEntries(ACTIONS.map(([n, k]) => [k, n]));
 const TARGET: Record<string, string> = {
   user: '사용자', receiver_org: '접수 기관', biosecurity_rule: '안내 문구', delivery: '접수 기록', form6: '6개 항목', history_report: '이력 신고서', farm: '농가',
@@ -594,8 +690,7 @@ const TARGET: Record<string, string> = {
 function AS08() {
   const [p, setP] = useState(0);
   const [a, setA] = useState(0);
-  const days = PERIODS[p][1];
-  const from = useMemo(() => (days ? new Date(Date.now() - days * 864e5).toISOString() : undefined), [days]);
+  const from = useFrom(PERIODS[p][1]);
   const list = usePage<AuditLog>('/api/admin/audit-logs' + qs({ from, action: ACTIONS[a][1] }));
   const rows = list.items;
   return (
