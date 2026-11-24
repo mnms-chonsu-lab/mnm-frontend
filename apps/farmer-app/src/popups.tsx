@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Cow, type CowLookup, type HistoryReport, type MyFarm } from '@mnm/api-client';
 import { Btn, Card, Chips, Err, H, Info, Input, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
 import { CallBtn, CallNumber } from './check';
@@ -63,28 +63,36 @@ export const FP03 = () => (
 
 const digits = (s: string) => s.replace(/\D/g, '');
 
-/** 소 추가: 귀표 12자리 → 이력제 조회(FARM-22) → 등록(FARM-23). 못 찾거나 조회가 안 되면 직접 입력(F-P04N) */
+/** 소 추가: 귀표 12자리 → 이력제 조회(FARM-22) → 등록(FARM-23). 못 찾거나 조회가 안 되면 직접 입력(F-P04N).
+ * 12자리가 되거나 번호를 고쳐 다시 12자리가 되면 자동으로 다시 조회한다 (?tag=로 열면 그 번호부터) */
 export function FP04() {
   const nav = useNavigate();
-  const [tag, setTag] = useState('');
+  const [tag, setTag] = useState(useSearchParams()[0].get('tag') ?? '');
   const [barn, setBarn] = useState('');
   const [found, setFound] = useState<CowLookup>();
   const [other, setOther] = useState(false); // 다른 농장 소 → 확인 후 다시
-  const manual = () => nav(`/f-p04n?tag=${digits(tag)}`, { replace: true });
+  const seq = useRef(0);
+  const t = digits(tag);
+  const manual = () => nav(`/f-p04n?tag=${t}`, { replace: true });
   const look = useSend(async () => {
+    const my = ++seq.current; // 번호를 또 고쳤으면 늦게 온 이전 번호 결과는 버린다
     setFound(undefined);
     setOther(false);
     try {
-      setFound(await api<CowLookup>('/api/farmer/cows/lookup?tag_no=' + digits(tag)));
+      const r = await api<CowLookup>('/api/farmer/cows/lookup?tag_no=' + t);
+      if (my === seq.current) setFound(r);
     } catch (e) {
-      if (!(e instanceof ApiError)) throw e;
+      if (!(e instanceof ApiError) || my !== seq.current) throw e;
       if (e.code === 'CATTLE-NOTFOUND' || e.code === 'TRACE-API-FAIL') manual();
       else if (e.code === 'CATTLE-OTHER-FARM') setOther(true);
       else throw e;
     }
   });
+  useEffect(() => {
+    if (t.length === 12) void look.submit();
+  }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
   const reg = useSend(async () => {
-    await api<Cow>('/api/farmer/farms/me/cows', { method: 'POST', body: { tag_no: digits(tag), barn: barn || undefined, confirm_other_farm: other } });
+    await api<Cow>('/api/farmer/farms/me/cows', { method: 'POST', body: { tag_no: t, barn: barn || undefined, confirm_other_farm: other } });
     nav(-1);
   });
   const err = { ...look.err, ...reg.err };
@@ -93,7 +101,7 @@ export function FP04() {
       <H>소 추가</H>
       <Row>
         <Input label="002 1234 5678 9 (귀표 12자리)" inputMode="numeric" value={tag} onChange={(e) => (setTag(e.target.value), setFound(undefined), setOther(false))} err={err.tag_no} />
-        <Btn v="s" onClick={look.submit} disabled={look.busy || digits(tag).length !== 12}>찾기</Btn>
+        <Btn v="s" onClick={look.submit} disabled={look.busy || t.length !== 12}>{look.busy ? '찾는 중…' : '다시 찾기'}</Btn>
       </Row>
       {found && (found.already_registered ? <Info tone="w">이미 내 목록에 있는 소예요.</Info> : (
         <Info tone="ok"><b>찾았어요</b> {[found.breed, found.sex, found.birth_date && kfull(found.birth_date) + ' 출생'].filter(Boolean).join(' · ')}{found.vaccine_last_date && <><br />구제역 백신 최종 접종 {kday(found.vaccine_last_date)}</>}</Info>
@@ -113,7 +121,21 @@ export function FP04() {
 
 export function FP04N() {
   const nav = useNavigate();
-  const [tag, setTag] = useState(useSearchParams()[0].get('tag') ?? '');
+  const first = useSearchParams()[0].get('tag') ?? '';
+  const [tag, setTag] = useState(first);
+  const t = digits(tag);
+  // 번호를 고쳐 다시 12자리가 되면 자동으로 다시 조회하고, 찾으면 소 추가(F-P04) 화면으로 (명세 F-P04N ①)
+  useEffect(() => {
+    if (t.length !== 12 || t === first) return;
+    let live = true;
+    api<CowLookup>('/api/farmer/cows/lookup?tag_no=' + t).then(
+      () => live && nav(`/f-p04?tag=${t}`, { replace: true }),
+      () => {}, // 못 찾음·조회 실패면 직접 입력 그대로
+    );
+    return () => {
+      live = false;
+    };
+  }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
   const [sex, setSex] = useState<'암' | '수'>();
   const [birth, setBirth] = useState('');
   const [barn, setBarn] = useState('');
