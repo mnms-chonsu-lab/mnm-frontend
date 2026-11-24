@@ -11,7 +11,7 @@ export function FS00() {
   const goNext = useGoNext('/f-s01');
   const [farmNo, setFarmNo] = useState('');
   const [phone, setPhone] = useState('');
-  const [agree, setAgree] = useState(CONSENTS.map(() => false));
+  const [agree, setAgree] = useState(CONSENTS.map(() => true)); // 3개 모두 필수라 기본 전체 체크
   const all = agree.every(Boolean);
   const { submit, err, busy } = useAuthForm(async () => {
     await farmerLogin(farmNo, phone);
@@ -33,6 +33,7 @@ export function FS00() {
             </Row>
           ))}
         </Card>
+        {!all && <Err>필수 동의가 필요해요</Err>}
         <Btn submit disabled={!all || busy}>시작하기</Btn>
       </Form>
     </Phone>
