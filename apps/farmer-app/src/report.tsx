@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { api, newKey, type CopyText, type HistoryReport, type ReportType, type SubmitResult } from '@mnm/api-client';
+import { useRef, useState, type ReactNode } from 'react';
+import { api, newKey, type Cow, type CopyText, type HistoryReport, type ReportType, type SubmitResult } from '@mnm/api-client';
 import { Btn, Card, Chips, CopyBtn, Done, Dots, Err, H, Info, Input, KV, P, Phone, Pill, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
-import { dday, kday, tagFmt, useId, useSend } from './shared';
+import { cowDesc, dday, kday, tagFmt, useCows, useId, useSend } from './shared';
 
 /** 신고서 칸 이름과 순서 (mnm-dev `ReportFields`) */
 export const FIELD: Record<string, string> = {
@@ -44,12 +44,24 @@ export function FS04Q() {
   const [v, setV] = useState('');
   const x = r.data;
   const k = x?.missing[0];
-  const { submit, err, busy } = useSend(async () => {
-    const next = await api<HistoryReport>('/api/farmer/history-reports/' + id, { method: 'PATCH', body: { fields: { [k!]: v.trim() } } });
+  const cows = useCows().data?.items ?? [];
+  // 끝 4자리가 같은 소가 2마리 이상이면 후보를 보여 주고 고른 소의 12자리로 저장한다 (mnm-dev#35 합의)
+  const [cands, setCands] = useState<Cow[]>();
+  const chosen = useRef('');
+  const save = async (value: string) => {
+    const next = await api<HistoryReport>('/api/farmer/history-reports/' + id, { method: 'PATCH', body: { fields: { [k!]: value } } });
     setV('');
+    setCands(undefined);
     if (next.missing.length) r.reload();
     else nav(`${draftPath(next.type)}?id=${id}`, { replace: true });
+  };
+  const { submit, err, busy } = useSend(async () => {
+    const value = v.trim();
+    const same = (k === 'mother_tag4' || k === 'cow_tag') && /^\d{4}$/.test(value) ? cows.filter((c) => c.tag_last4 === value) : [];
+    if (same.length > 1) setCands(same);
+    else await save(value);
   });
+  const pick = useSend(() => save(chosen.current));
   return (
     <Phone title="신고서 초안" tab="홈" say={x?.next_question ?? undefined}>
       <Dots n={3} on={2} />
@@ -58,9 +70,21 @@ export function FS04Q() {
         <>
           <P><b>빈칸 {x.missing.length}개 남았어요</b></P>
           <H center>{x.next_question ?? `${FIELD[k] ?? k}을(를) 알려 주세요`}</H>
-          <FieldInput k={k} value={v} onChange={setV} err={err[`fields.${k}`] ?? err[k]} />
+          <FieldInput k={k} value={v} onChange={(y) => (setV(y), setCands(undefined))} err={err[`fields.${k}`] ?? err[k]} />
           <Err>{err._}</Err>
-          <Btn onClick={submit} disabled={busy || !v.trim()}>다음</Btn>
+          {cands ? (
+            <Card>
+              <b>{v.trim()}번이 {cands.length}마리예요. 어느 소예요?</b>
+              {cands.map((c) => (
+                <Btn key={c.cow_id} v="s" disabled={pick.busy} onClick={() => ((chosen.current = c.tag_full), void pick.submit())}>
+                  {c.tag_last4}번 · {cowDesc(c) || tagFmt(c.tag_full)}
+                </Btn>
+              ))}
+              <Err>{pick.err._ ?? pick.err[`fields.${k}`]}</Err>
+            </Card>
+          ) : (
+            <Btn onClick={submit} disabled={busy || !v.trim()}>다음</Btn>
+          )}
         </>
       )}
       {x && <Btn v="t" to={`${draftPath(x.type)}?id=${id}`}>나중에 채울게요</Btn>}
