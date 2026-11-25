@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
 import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
-import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
+import { CowList, RECEIVER, RESULT, digits, hyphen, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 
 export { CowList } from './shared';
 
@@ -28,8 +28,8 @@ export function FS00() {
     <Phone title="촌수의사" back={false} say="농장식별번호와 휴대폰 번호를 넣어 주세요.">
       <Form onSubmit={submit}>
         <H>농장식별번호로<br /><em>시작해요</em></H>
-        <Input label="농장식별번호 6자리" inputMode="numeric" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(e.target.value)} err={err.farm_no} />
-        <Input label="휴대폰 번호 010-0000-0000" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
+        <Input label="농장식별번호 6자리" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(digits(e.target.value))} err={err.farm_no} />
+        <Input label="휴대폰 번호 010-0000-0000" type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(hyphen(e.target.value))} err={err.phone} />
         <Err>{err._}</Err>
         <Card>
           <label><input type="checkbox" checked={all} onChange={() => setAgree(CONSENTS.map(() => !all))} /> <b>전체 동의 (필수)</b></label>

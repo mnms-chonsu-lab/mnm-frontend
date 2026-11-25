@@ -167,9 +167,10 @@ export function Chips({ items, on = -1, onPick }: { items: string[]; on?: number
   );
 }
 
-export const Keypad = () => (
+/** 큰 숫자 키패드 (0~9, 지움). onKey('지움')이면 한 글자 지우기 */
+export const Keypad = ({ onKey }: { onKey: (k: string) => void }) => (
   <div className="keypad">
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, '지움', 0, '완료'].map((k) => <button type="button" key={k}>{k}</button>)}
+    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '지움', '0'].map((k) => <button type="button" key={k} aria-label={k === '지움' ? '한 글자 지우기' : k} onClick={() => onKey(k)}>{k}</button>)}
   </div>
 );
 

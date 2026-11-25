@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Cow, type CowLookup, type HistoryReport, type MyFarm } from '@mnm/api-client';
-import { Btn, Card, Chips, Err, H, Info, Input, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
+import { Btn, Card, Chips, Err, H, Info, Input, Keypad, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
 import { CallBtn, CallNumber } from './check';
-import { cowName, flow, kday, kfull, tagFmt, tel, useCows, useId, useSend } from './shared';
+import { cowName, digits, flow, hyphen, kday, kfull, spaced, tagFmt, tel, useCows, useId, useSend } from './shared';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
 const Popup = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -39,7 +39,8 @@ export function FP02() {
     <Popup title="신고서 초안">
       <H>귀표 번호 입력</H>
       <P>귀표에 적힌 12자리 숫자</P>
-      <Input label="002 0000 0000 0" inputMode="numeric" value={tag} onChange={(e) => setTag(e.target.value)} err={err['fields.calf_tag'] ?? err.calf_tag} />
+      <Input label="002 0000 0000 0" inputMode="numeric" value={tag} onChange={(e) => setTag(spaced(e.target.value))} err={err['fields.calf_tag'] ?? err.calf_tag} />
+      <Keypad onKey={(k) => setTag((t) => spaced(k === '지움' ? digits(t).slice(0, -1) : t + k))} />
       <Err>{err._}</Err>
       <Btn onClick={submit} disabled={busy || tag.replace(/\D/g, '').length !== 12}>입력 완료</Btn>
       <Btn v="t" to={-1}>닫기</Btn>
@@ -80,13 +81,11 @@ export function FP03() {
   );
 }
 
-const digits = (s: string) => s.replace(/\D/g, '');
-
 /** 소 추가: 귀표 12자리 → 이력제 조회(FARM-22) → 등록(FARM-23). 못 찾거나 조회가 안 되면 직접 입력(F-P04N).
  * 12자리가 되거나 번호를 고쳐 다시 12자리가 되면 자동으로 다시 조회한다 (?tag=로 열면 그 번호부터) */
 export function FP04() {
   const nav = useNavigate();
-  const [tag, setTag] = useState(useSearchParams()[0].get('tag') ?? '');
+  const [tag, setTag] = useState(spaced(useSearchParams()[0].get('tag') ?? ''));
   const [barn, setBarn] = useState('');
   const [found, setFound] = useState<CowLookup>();
   const [other, setOther] = useState(false); // 다른 농장 소 → 확인 후 다시
@@ -119,7 +118,7 @@ export function FP04() {
     <Popup title="내 소">
       <H>소 추가</H>
       <Row>
-        <Input label="002 1234 5678 9 (귀표 12자리)" inputMode="numeric" value={tag} onChange={(e) => (setTag(e.target.value), setFound(undefined), setOther(false))} err={err.tag_no} />
+        <Input label="002 1234 5678 9 (귀표 12자리)" inputMode="numeric" value={tag} onChange={(e) => (setTag(spaced(e.target.value)), setFound(undefined), setOther(false))} err={err.tag_no} />
         <Btn v="s" onClick={look.submit} disabled={look.busy || t.length !== 12}>{look.busy ? '찾는 중…' : '다시 찾기'}</Btn>
       </Row>
       {found && (found.already_registered ? <Info tone="w">이미 내 목록에 있는 소예요.</Info> : (
@@ -141,7 +140,7 @@ export function FP04() {
 export function FP04N() {
   const nav = useNavigate();
   const first = useSearchParams()[0].get('tag') ?? '';
-  const [tag, setTag] = useState(first);
+  const [tag, setTag] = useState(spaced(first));
   const t = digits(tag);
   // 번호를 고쳐 다시 12자리가 되면 자동으로 다시 조회하고, 찾으면 소 추가(F-P04) 화면으로 (명세 F-P04N ①)
   useEffect(() => {
@@ -165,7 +164,7 @@ export function FP04N() {
   return (
     <Popup title="내 소">
       <H>소 추가</H>
-      <Input label="002 1234 5678 0 (귀표 12자리)" inputMode="numeric" value={tag} onChange={(e) => setTag(e.target.value)} err={err.tag_no} />
+      <Input label="002 1234 5678 0 (귀표 12자리)" inputMode="numeric" value={tag} onChange={(e) => setTag(spaced(e.target.value))} err={err.tag_no} />
       <Info tone="w">이 번호로 등록된 소를 찾지 못했어요. 번호를 다시 확인하거나 직접 넣어 주세요.</Info>
       <Chips items={['암', '수']} on={sex ? ['암', '수'].indexOf(sex) : -1} onPick={(i) => setSex(i ? '수' : '암')} />
       <Err>{err.sex}</Err>
@@ -251,7 +250,7 @@ export function FP06() {
   return (
     <Popup title="내 정보">
       <H>연락처 바꾸기</H>
-      <Input label="새 휴대폰 번호 010-0000-0000" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
+      <Input label="새 휴대폰 번호 010-0000-0000" type="tel" inputMode="numeric" value={phone} onChange={(e) => setPhone(hyphen(e.target.value))} err={err.phone} />
       <Info tone="w">바꾼 번호로 다음에 로그인해요. 접수자에게 보이는 번호도 함께 바뀌어요.</Info>
       <Err>{err._}</Err>
       <Btn onClick={() => setAsk(true)} disabled={busy || digits(phone).length < 10}>바꾸기</Btn>
