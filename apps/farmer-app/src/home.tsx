@@ -56,9 +56,10 @@ export function FS01() {
   }, [d]);
   const r = d?.region;
   return (
-    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, 오늘 할 일이 ${d.task_count}개 있어요. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
+    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, ${d.task_count ? `오늘 할 일이 ${d.task_count}개 있어요` : '오늘 할 일을 모두 마쳤어요'}. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
       <Status q={h} />
-      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘도 <em>좋은 하루</em> 되세요</>}</H>}
+      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘 할 일을 <em>모두 마쳤어요</em></>}</H>}
+      {d && !d.task_count && <Info tone="ok">✓ 신고 기한이 남은 일이 없어요</Info>}
       {d?.tasks.map((t) => (
         <Card key={t.tasks_id} to={TASK_TO[t.kind]?.(t.ref_id)}>
           <Pill tone="w">기한 알림{t.d_day != null && ` · D-${t.d_day}`}</Pill>
