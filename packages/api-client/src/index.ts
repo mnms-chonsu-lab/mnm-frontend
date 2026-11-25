@@ -71,12 +71,14 @@ export const setOnExpired = (f: () => void) => {
 
 /* ---------- 호출 ---------- */
 const TIMEOUT_MS = 15_000; // 일반 응답 지연 기준 (오류·예외 TIMEOUT)
+// 파일 올리기(FormData): 음성은 서버가 음성 인식·항목 정리를 이어 불러 각 8초라 15초를 넘길 수 있다. 올리는 시간까지 (제안값, 실측으로 조정)
+const UPLOAD_TIMEOUT_MS = 40_000;
 const GET_RETRY_MS = [1000, 3000]; // 조회(GET)만 시간이 지나면 1초·3초 뒤 다시 (저장·전달은 자동 재시도 금지)
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * `{ data }`의 data를 돌려준다. 204면 undefined. 실패하면 ApiError를 던진다. body가 FormData면 multipart로 보낸다.
- * 15초 안에 답이 없으면 TIMEOUT (조회는 두 번 더 해 본 뒤)
+ * 15초(파일 올리기는 40초) 안에 답이 없으면 TIMEOUT (조회는 두 번 더 해 본 뒤)
  */
 export async function api<T>(path: string, opts: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
   for (const delay of opts.method && opts.method !== 'GET' ? [] : GET_RETRY_MS) {
@@ -100,7 +102,7 @@ async function call<T>(path: string, { method = 'GET', body, headers }: { method
   const form = body instanceof FormData;
   let res: Response;
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctl.abort(), form ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS);
   try {
     res = await fetch(BASE + path, {
       method,
