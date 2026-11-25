@@ -3,7 +3,7 @@ import {
   api, ApiError, newKey, uploadFile,
   type Actions, type Answer, type Behavior, type Delivered, type Facility, type FarmerMe, type Page, type PartCheck, type Question, type Summary, type SymptomSaved, type UploadForm,
 } from '@mnm/api-client';
-import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Muted, P, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
+import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Modal, Muted, P, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
 import { CowList, PART, cowDesc, cowName, flow, kday, useCows, useId, useSend } from './shared';
 
 /** 소 상태 확인 흐름 공통 틀 */
@@ -19,17 +19,45 @@ const Restart = () => (
   </>
 );
 
-/** 신고 후 "지금 해 주세요" (FARM-16, 게시된 조치 문구 원문). disease가 없으면 그리지 않는다 */
-const NowDo = ({ disease, max = 3 }: { disease: string | null; max?: number }) => (disease ? <NowDoList disease={disease} max={max} /> : null);
+/** 신고 후 "지금 해 주세요" (FARM-16, 게시된 조치 문구 원문, 서버가 최대 3개). disease가 없으면 그리지 않는다. F-S14·F-S14P·F-S14W 같은 규칙·문구 */
+const NowDo = ({ disease }: { disease: string | null }) => (disease ? <NowDoList disease={disease} /> : null);
 
-function NowDoList({ disease, max }: { disease: string; max: number }) {
+type Action = Actions['actions'][number];
+/** "2026-05-06" → "2026년 5월판" */
+const edition = (d: string | null) => (d ? `${d.slice(0, 4)}년 ${Number(d.slice(5, 7))}월판` : null);
+/** 조항의 마지막 번호 ("제2장 > 2.2 > 2.2.2" → "2.2.2") */
+const lastClause = (c: string | null) => c?.split(/[>›/]/).pop()?.trim() || null;
+const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((v): v is string => !!v))];
+/** 근거 한 줄: 문서명 · 개정 연월 · 조항 마지막 번호 */
+const basis = (xs: Action[]) => [...uniq(xs.map((y) => y.source_doc)), ...uniq(xs.map((y) => edition(y.revised_at))), uniq(xs.map((y) => lastClause(y.clause))).join(', ')].filter(Boolean).join(' · ');
+
+function NowDoList({ disease }: { disease: string }) {
   const a = useApi<Actions>(`/api/farmer/guide/actions?disease=${disease}`);
+  const [open, setOpen] = useState(false);
   const x = a.data;
   return (
     <Card>
       <b>지금 해 주세요{x && ` · ${x.guide_name}`}</b>
       <Status q={a} />
-      {x?.actions.slice(0, max).map((y, i) => <span key={y.rule_id}>{i + 1}. {y.text}</span>)}
+      {x?.actions.map((y, i) => <span key={y.rule_id}>{i + 1}. {y.text}</span>)}
+      {!!x?.actions.length && (
+        <>
+          <Muted>{basis(x.actions)}</Muted>
+          <Btn v="t" onClick={() => setOpen(true)}>원문 보기</Btn>
+        </>
+      )}
+      {open && x && (
+        <Modal onClose={() => setOpen(false)}>
+          <H>{x.guide_name}</H>
+          {x.actions.map((y) => (
+            <Card key={y.rule_id}>
+              <Muted>{[y.source_doc, edition(y.revised_at), y.clause].filter(Boolean).join(' · ')}</Muted>
+              <span>{y.text}</span>
+            </Card>
+          ))}
+          <Btn onClick={() => setOpen(false)}>닫기</Btn>
+        </Modal>
+      )}
     </Card>
   );
 }
@@ -502,7 +530,7 @@ export function FS14P() {
       <CallBtn />
       <Btn v="s" to="/f-e04">통화할 때 말할 내용 보기</Btn>
       {cc && <Info tone="ok"><b>{cc}</b>에도 기록을 보냈어요</Info>}
-      <NowDo disease={q.get('d')} max={2} />
+      <NowDo disease={q.get('d')} />
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Check>
   );
@@ -526,7 +554,7 @@ export function FS14W() {
         <Row>{x.photos.filter((p) => p.url).map((p) => <Btn key={p.media_id} v="s" href={p.url!}>{PART[p.part] ?? p.part} 사진 열기</Btn>)}</Row>
       )}
       <Info tone="w"><a href="tel:15889060">급하면 전화가 더 빨라요 · 1588-9060</a></Info>
-      <NowDo disease={q.get('d')} max={1} />
+      <NowDo disease={q.get('d')} />
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Check>
   );
