@@ -15,10 +15,14 @@ const rows = [
 const farm = { farm_id: 1, farm_no: '448012', name: '김한우 농장', owner_name: '김한우', address: '충남 홍성군 ○○읍', head_count: 42, phone_shared: true, phone: '010-0000-0937' };
 const base = (id: number): Omit<InboxDetail, 'symptom' | 'history'> => ({
   delivery_id: id, kind: 'symptom', status: 'new', result: null, route: 'call', approved_at: '2026-11-02T00:42:00Z', received_at: '2026-11-02T00:42:00Z', farm,
-  basics: { vaccine: '구제역 백신 10.08', disinfection: '11.02', visit: '10.31' },
+  basics: {
+    vaccine: { date: '2026-10-08', category: '접종', value: '전체', vaccine_type: '구제역 백신', cow_tag4: null },
+    disinfection: { date: '2026-11-02', category: '소독', value: '2번 축사', vaccine_type: null, cow_tag4: null },
+    visit: { date: '2026-10-31', category: '출입', value: '사료 차량', vaccine_type: null, cow_tag4: null },
+  },
   diary: [
-    { date: '2026-11-02', category: '소독', value: '2번 축사', cow_tag4: null },
-    { date: '2026-10-30', category: '관찰', value: '사료 조금 남김', cow_tag4: '1234' },
+    { date: '2026-11-02', category: '소독', value: '2번 축사', vaccine_type: null, cow_tag4: null },
+    { date: '2026-10-30', category: '관찰', value: '사료 조금 남김', vaccine_type: null, cow_tag4: '1234' },
   ],
   timeline: [],
   guides: [{ source_doc: '구제역 긴급행동지침(SOP)', revised_at: '2026-05-06' }, { source_doc: '가축전염병 예방법 시행규칙 제13조', revised_at: null }],

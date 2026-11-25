@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
-import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 
 export { CowList } from './shared';
@@ -56,9 +56,10 @@ export function FS01() {
   }, [d]);
   const r = d?.region;
   return (
-    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, 오늘 할 일이 ${d.task_count}개 있어요. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
+    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, ${d.task_count ? `오늘 할 일이 ${d.task_count}개 있어요` : '오늘 할 일을 모두 마쳤어요'}. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
       <Status q={h} />
-      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘도 <em>좋은 하루</em> 되세요</>}</H>}
+      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘 할 일을 <em>모두 마쳤어요</em></>}</H>}
+      {d && !d.task_count && <Info tone="ok">✓ 신고 기한이 남은 일이 없어요</Info>}
       {d?.tasks.map((t) => (
         <Card key={t.tasks_id} to={TASK_TO[t.kind]?.(t.ref_id)}>
           <Pill tone="w">기한 알림{t.d_day != null && ` · D-${t.d_day}`}</Pill>
@@ -117,9 +118,24 @@ export function FS16() {
   );
 }
 
+/** [로그아웃] → 확인 모달 → F-S00 */
 function LogoutBtn() {
   const nav = useNavigate();
-  return <Btn v="t" onClick={() => (logout(), nav('/f-s00'))}>로그아웃</Btn>;
+  const [ask, setAsk] = useState(false);
+  return (
+    <>
+      <Btn v="t" onClick={() => setAsk(true)}>로그아웃</Btn>
+      {ask && (
+        <Modal onClose={() => setAsk(false)}>
+          <H>로그아웃할까요?</H>
+          <Row>
+            <Btn v="t" onClick={() => setAsk(false)}>아니요</Btn>
+            <Btn onClick={() => (logout(), nav('/f-s00'))}>네</Btn>
+          </Row>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 export const useFarm = () => useApi<MyFarm>('/api/farmer/me/farm');
@@ -129,7 +145,7 @@ export function FS17() {
   const f = useFarm();
   const d = f.data;
   return (
-    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글자 크기와 선명한 화면을 바꿀 수 있어요.">
+    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글씨 크기와 선명한 화면을 바꿀 수 있어요.">
       <Status q={f} />
       {d && (
         <KV rows={[
