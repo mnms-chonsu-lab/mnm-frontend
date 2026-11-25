@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
-import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
-import { CowList, RECEIVER, RESULT, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Logo, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
+import { CowList, RECEIVER, RESULT, digits, hyphen, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 import { clearSent, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
 
 export { CowList } from './shared';
 
 const CONSENTS = ['개인정보 수집·이용 동의 (필수)', '기록 전달 동의 (필수)', '처리 위탁 동의 (필수)'];
+// [보기](F-P03)는 다른 경로라 돌아오면 로그인 화면이 새로 그려진다. 넣던 값·체크를 기억해 두고 되살린다 (새로고침하면 처음부터)
+const memo: { farmNo?: string; phone?: string; agree?: boolean[] } = {};
+/** useState + memo[key]에 같이 적기 */
+function useMemoState<K extends keyof typeof memo>(key: K, init: NonNullable<(typeof memo)[K]>) {
+  const [v, setV] = useState(() => memo[key] ?? init);
+  return [v, (x: NonNullable<(typeof memo)[K]>) => setV((memo[key] = x))] as const;
+}
 
 export function FS00() {
   const goNext = useGoNext('/f-s01');
-  const [farmNo, setFarmNo] = useState('');
-  const [phone, setPhone] = useState('');
-  const [agree, setAgree] = useState(CONSENTS.map(() => false));
+  const [farmNo, setFarmNo] = useMemoState('farmNo', '');
+  const [phone, setPhone] = useMemoState('phone', '');
+  const [agree, setAgree] = useMemoState('agree', CONSENTS.map(() => true)); // 3개 모두 필수라 기본 전체 체크
   const all = agree.every(Boolean);
   const { submit, err, busy } = useAuthForm(async () => {
     await farmerLogin(farmNo, phone);
@@ -21,19 +28,21 @@ export function FS00() {
   return (
     <Phone title="촌수의사" back={false} say="농장식별번호와 휴대폰 번호를 넣어 주세요.">
       <Form onSubmit={submit}>
+        <Logo />
         <H>농장식별번호로<br /><em>시작해요</em></H>
-        <Input label="농장식별번호 6자리" inputMode="numeric" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(e.target.value)} err={err.farm_no} />
-        <Input label="휴대폰 번호 010-0000-0000" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
+        <Input label="농장식별번호 6자리" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(digits(e.target.value))} err={err.farm_no} />
+        <Input label="휴대폰 번호 010-0000-0000" type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(hyphen(e.target.value))} err={err.phone} />
         <Err>{err._}</Err>
         <Card>
           <label><input type="checkbox" checked={all} onChange={() => setAgree(CONSENTS.map(() => !all))} /> <b>전체 동의 (필수)</b></label>
           {CONSENTS.map((x, i) => (
             <Row key={x}>
               <label><input type="checkbox" checked={agree[i]} onChange={() => setAgree(agree.map((v, j) => (j === i ? !v : v)))} /> {x}</label>
-              <Link className="more" to="/f-p03">보기</Link>
+              <Link className="more" to={`/f-p03?i=${i}`}>보기</Link>
             </Row>
           ))}
         </Card>
+        {!all && <Err>필수 동의가 필요해요</Err>}
         <Btn submit disabled={!all || busy}>시작하기</Btn>
       </Form>
     </Phone>
@@ -83,9 +92,10 @@ export function FS01() {
   }, [d]);
   const r = d?.region;
   return (
-    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, 오늘 할 일이 ${d.task_count}개 있어요. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
+    <Phone title="촌수의사" back={false} tab="홈" report={false} say={d ? `${d.farmer_name} 님, ${d.task_count ? `오늘 할 일이 ${d.task_count}개 있어요` : '오늘 할 일을 모두 마쳤어요'}. 말로 기록하기, 소 상태 확인하기, 바로 신고 버튼이 있어요.` : undefined}>
       <Status q={h} />
-      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘도 <em>좋은 하루</em> 되세요</>}</H>}
+      {d && <H>{d.farmer_name} 님,<br />{d.task_count ? <>오늘 <em>할 일 {d.task_count}개</em>가 있어요</> : <>오늘 할 일을 <em>모두 마쳤어요</em></>}</H>}
+      {d && !d.task_count && <Info tone="ok">✓ 신고 기한이 남은 일이 없어요</Info>}
       <Outbox />
       {d?.tasks.map((t) => (
         <Card key={t.tasks_id} to={TASK_TO[t.kind]?.(t.ref_id)}>
@@ -145,9 +155,24 @@ export function FS16() {
   );
 }
 
+/** [로그아웃] → 확인 모달 → F-S00 */
 function LogoutBtn() {
   const nav = useNavigate();
-  return <Btn v="t" onClick={() => (logout(), nav('/f-s00'))}>로그아웃</Btn>;
+  const [ask, setAsk] = useState(false);
+  return (
+    <>
+      <Btn v="t" onClick={() => setAsk(true)}>로그아웃</Btn>
+      {ask && (
+        <Modal onClose={() => setAsk(false)}>
+          <H>로그아웃할까요?</H>
+          <Row>
+            <Btn v="t" onClick={() => setAsk(false)}>아니요</Btn>
+            <Btn onClick={() => (logout(), nav('/f-s00'))}>네</Btn>
+          </Row>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 export const useFarm = () => useApi<MyFarm>('/api/farmer/me/farm');
@@ -157,7 +182,7 @@ export function FS17() {
   const f = useFarm();
   const d = f.data;
   return (
-    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글자 크기와 선명한 화면을 바꿀 수 있어요.">
+    <Phone title="내 정보" back={false} tab="내 정보" say="내 정보와 화면 설정이에요. 글씨 크기와 선명한 화면을 바꿀 수 있어요.">
       <Status q={f} />
       {d && (
         <KV rows={[

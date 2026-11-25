@@ -33,6 +33,8 @@ function Tap({ to, className, children }: Kids & { to?: To; className: string })
 
 /* ---------- 공통 블록 ---------- */
 export const H = ({ center, children }: Kids & { center?: boolean }) => <h1 className={'h' + (center ? ' c' : '')}>{children}</h1>;
+/** 촌수의사 로고 (packages/ui/public/favicon.svg). 글자가 옆에 있으니 alt는 비운다 */
+export const Logo = ({ size = 56 }: { size?: number }) => <img className="brand" src="/favicon.svg" alt="" width={size} height={size} />;
 export const P = ({ center, children }: Kids & { center?: boolean }) => <p className={'p' + (center ? ' c' : '')}>{children}</p>;
 export const Pill = ({ tone, children }: Kids & { tone?: Tone }) => <span className={'pill ' + (tone ?? '')}>{children}</span>;
 export const Row = ({ children }: Kids) => <div className="row">{children}</div>;
@@ -167,9 +169,10 @@ export function Chips({ items, on = -1, onPick }: { items: string[]; on?: number
   );
 }
 
-export const Keypad = () => (
+/** 큰 숫자 키패드 (0~9, 지움). onKey('지움')이면 한 글자 지우기 */
+export const Keypad = ({ onKey }: { onKey: (k: string) => void }) => (
   <div className="keypad">
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, '지움', 0, '완료'].map((k) => <button type="button" key={k}>{k}</button>)}
+    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '지움', '0'].map((k) => <button type="button" key={k} aria-label={k === '지움' ? '한 글자 지우기' : k} onClick={() => onKey(k)}>{k}</button>)}
   </div>
 );
 
@@ -232,20 +235,40 @@ function speak() {
   u.lang = 'ko-KR';
   speechSynthesis.speak(u);
 }
+/* ---------- 토스트: 화면 아래 잠깐 뜨는 안내 (3초) ---------- */
+let toastMsg = '';
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+const toastSubs = new Set<() => void>();
+const setToast = (m: string) => {
+  toastMsg = m;
+  toastSubs.forEach((f) => f());
+};
+export function toast(msg: string) {
+  clearTimeout(toastTimer);
+  setToast(msg);
+  toastTimer = setTimeout(() => setToast(''), 3000);
+}
+function Toast() {
+  const m = useSyncExternalStore((f) => (toastSubs.add(f), () => void toastSubs.delete(f)), () => toastMsg);
+  return m ? <div className="toast" role="status">{m}</div> : null;
+}
+
+// 소리 안내가 없는 휴대폰도 버튼은 그대로 두고 누르면 알린다 (TTS-NA)
 const toggleSpeak = () => {
+  if (!canSpeak) return toast('이 휴대폰에서는 소리 안내를 쓸 수 없어요.');
   setPrefs({ speak: !prefs.speak });
   if (prefs.speak) speak();
   else if (canSpeak) speechSynthesis.cancel();
 };
 
-/** 헤더 [가] 버튼. 누를 때마다 다음 글자 크기 */
+/** 헤더 [글씨 크기] 버튼. 누를 때마다 다음 글자 크기 */
 export function FontBtn() {
   const p = usePrefs();
   const steps = fontSteps();
   const i = fontStep(p.font);
   return (
-    <button type="button" className="fz" aria-label={`글자 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
-      가 {steps[i][0]}
+    <button type="button" className="fz" aria-label={`글씨 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
+      글씨 크기 <span style={{ whiteSpace: 'nowrap' }}>{steps[i][0]}</span>
     </button>
   );
 }
@@ -263,10 +286,10 @@ export function PrefsCard() {
   const steps = fontSteps();
   return (
     <div className="card">
-      <b>글자 크기</b>
+      <b>글씨 크기</b>
       <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
       <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
-      {canSpeak && <Switch label="소리 안내" on={!!p.speak} onClick={toggleSpeak} />}
+      <Switch label="소리 안내" on={!!p.speak && canSpeak} onClick={toggleSpeak} />
     </div>
   );
 }
@@ -320,9 +343,10 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
         {back && <button type="button" className="bk" aria-label="뒤로" onClick={go(-1)}>‹</button>}
         <span className="tt">{title}</span>
         <FontBtn />
-        {canSpeak && <button type="button" className={p.speak ? 'on' : ''} aria-pressed={!!p.speak} onClick={toggleSpeak}>듣기</button>}
+        <button type="button" className={p.speak && canSpeak ? 'on' : ''} aria-pressed={!!p.speak && canSpeak} onClick={toggleSpeak}>듣기</button>
       </header>
       <main className="body">{children}</main>
+      <Toast />
       {(report || tab) && (
         <footer className="foot">
           {report && <div className="fix"><Btn v="d" to="/f-p01">바로 신고 1588-9060</Btn></div>}
@@ -367,7 +391,7 @@ export const Mast = ({ children }: Kids) => <div className="mast">{children}</di
 
 export const Gnb = ({ brand, items = [], right }: { brand: string; items?: [string, string][]; right?: ReactNode }) => (
   <header className="gnb">
-    <span className="logo">{brand}</span>
+    <span className="logo"><Logo size={28} />{brand}</span>
     <nav>
       {items.map(([name, to]) => <NavLink key={name} to={to}>{name}</NavLink>)}
     </nav>
@@ -547,6 +571,7 @@ export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: s
   return (
     <Center>
       <Form onSubmit={submit}>
+        <Logo />
         <H>촌수의사 <Muted>{sub}</Muted></H>
         <Input label="아이디" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} err={err.login_id} />
         <Input label="비밀번호" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} err={err.password} />
