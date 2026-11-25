@@ -25,6 +25,7 @@ small { display: block; font-size: 0.8rem; font-weight: 400; color: var(--g70); 
 a { color: var(--p60); }
 
 .h { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; text-wrap: balance; }
+.brand { flex: none; align-self: flex-start; }
 .p { margin: 0; color: var(--g70); }
 .c { text-align: center; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -113,6 +114,8 @@ a { color: var(--p60); }
 .hdr .tt { flex: 1; padding-left: 8px; font-weight: 700; }
 .hdr button { min-width: 52px; min-height: 48px; padding: 0 8px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); font-size: 0.8rem; }
 .hdr .bk { border: 0; font-size: 1.6rem; }
+/* "글씨 크기 가장 크게"가 큰 글씨에서 제목을 밀어내지 않게 두 줄로 */
+.hdr .fz { max-width: 5.6em; line-height: 1.15; }
 .hdr button.on { background: var(--p50); border-color: var(--p50); color: #fff; font-weight: 700; }
 .body { flex: 1; display: flex; flex-direction: column; gap: var(--gap); padding: 18px; }
 .foot { position: sticky; bottom: 0; z-index: 5; background: var(--g0); border-top: 1px solid var(--g10); }
@@ -128,13 +131,13 @@ a { color: var(--p60); }
 .toast { position: fixed; left: 50%; bottom: 140px; z-index: 20; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 12px; background: #1e2124; color: #fff; border: 2px solid #fff; font-weight: 700; text-align: center; }
 .sheet, .modal { width: 100%; background: var(--g0); display: flex; flex-direction: column; gap: 12px; }
 .sheet { max-width: 480px; padding: 24px 18px; border-radius: 20px 20px 0 0; }
-.modal { max-width: 520px; padding: 22px; border-radius: 12px; margin: auto; }
+.modal { max-width: 520px; max-height: calc(100dvh - 32px); overflow: auto; padding: 22px; border-radius: 12px; margin: auto; }
 
 /* ---------- 웹(접수자·어드민) 틀 ---------- */
 .mast { padding: 6px 16px; background: var(--g90); color: #fff; font-size: 0.85rem; }
 .mast.w { background: var(--w5); color: var(--w50); font-weight: 700; }
 .gnb { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; padding: 8px 16px; background: var(--g0); border-bottom: 1px solid var(--g10); }
-.gnb .logo { font-weight: 700; font-size: 1.1rem; }
+.gnb .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; }
 .gnb nav { display: flex; gap: 4px; overflow-x: auto; }
 .gnb .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .gnb .fz { min-height: 40px; padding: 0 10px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); color: var(--g90); font-size: 0.85rem; }

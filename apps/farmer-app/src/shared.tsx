@@ -6,7 +6,7 @@ import { Opt, Status, fontSteps, openSheet, setPrefs, setPrefsSaver, useApi, use
 /** 말·글 기록 정리 초안 (F-S02 → F-S03 → F-S03E) · 소 상태 확인 (F-S08 → F-S11) */
 export const flow: {
   draft?: RecordDraft;
-  check: { cowId?: number | null; observed?: string; headCount?: number | null; answers: Partial<Record<AnswerKey, Answer>>; saved?: SymptomSaved };
+  check: { cowId?: number | null; observed?: string; headCount?: number | null; foundDate?: string; barn?: string; answers: Partial<Record<AnswerKey, Answer>>; saved?: SymptomSaved };
   summary?: Summary;
 } = { check: { answers: {} } };
 
@@ -50,6 +50,20 @@ export const kat = (iso: string) => {
 export const dday = (n: number | null | undefined) => (n == null ? '' : n < 0 ? `${-n}일 지남` : n === 0 ? '오늘까지' : `${n}일 남음`);
 /** "01000000937" → "010-0000-0937" */
 export const tel = (p: string) => p.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
+export const digits = (s: string) => s.replace(/\D/g, '');
+/** 입력 중 휴대폰 번호에 하이픈 자동: "0101234" → "010-1234", 11자리 → "010-1234-5678" (최대 11자리) */
+export const hyphen = (s: string) => {
+  const d = digits(s).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  const mid = d.length === 11 ? 4 : 3;
+  return `${d.slice(0, 3)}-${d.slice(3, 3 + mid)}-${d.slice(3 + mid)}`;
+};
+/** 입력 중 귀표를 3-4-4-1로 띄어 보이기: "0021234" → "002 1234" (최대 12자리) */
+export const spaced = (s: string) => {
+  const d = digits(s).slice(0, 12);
+  return [d.slice(0, 3), d.slice(3, 7), d.slice(7, 11), d.slice(11)].filter(Boolean).join(' ');
+};
 
 export const PART: Record<string, string> = { mouth: '입', udder: '젖', hoof: '발굽', flank: '몸 옆면' };
 export const RECEIVER: Record<string, string> = { new: '전달됨', checking: '확인 중', done: '확인함' };

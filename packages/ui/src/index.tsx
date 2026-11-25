@@ -33,6 +33,8 @@ function Tap({ to, className, children }: Kids & { to?: To; className: string })
 
 /* ---------- 공통 블록 ---------- */
 export const H = ({ center, children }: Kids & { center?: boolean }) => <h1 className={'h' + (center ? ' c' : '')}>{children}</h1>;
+/** 촌수의사 로고 (packages/ui/public/favicon.svg). 글자가 옆에 있으니 alt는 비운다 */
+export const Logo = ({ size = 56 }: { size?: number }) => <img className="brand" src="/favicon.svg" alt="" width={size} height={size} />;
 export const P = ({ center, children }: Kids & { center?: boolean }) => <p className={'p' + (center ? ' c' : '')}>{children}</p>;
 export const Pill = ({ tone, children }: Kids & { tone?: Tone }) => <span className={'pill ' + (tone ?? '')}>{children}</span>;
 export const Row = ({ children }: Kids) => <div className="row">{children}</div>;
@@ -167,9 +169,10 @@ export function Chips({ items, on = -1, onPick }: { items: string[]; on?: number
   );
 }
 
-export const Keypad = () => (
+/** 큰 숫자 키패드 (0~9, 지움). onKey('지움')이면 한 글자 지우기 */
+export const Keypad = ({ onKey }: { onKey: (k: string) => void }) => (
   <div className="keypad">
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, '지움', 0, '완료'].map((k) => <button type="button" key={k}>{k}</button>)}
+    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '지움', '0'].map((k) => <button type="button" key={k} aria-label={k === '지움' ? '한 글자 지우기' : k} onClick={() => onKey(k)}>{k}</button>)}
   </div>
 );
 
@@ -283,14 +286,14 @@ const toggleSpeak = () => {
   else if (canSpeak) speechSynthesis.cancel();
 };
 
-/** 헤더 [가] 버튼. 누를 때마다 다음 글자 크기 */
+/** 헤더 [글씨 크기] 버튼. 누를 때마다 다음 글자 크기 */
 export function FontBtn() {
   const p = usePrefs();
   const steps = fontSteps();
   const i = fontStep(p.font);
   return (
-    <button type="button" className="fz" aria-label={`글자 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
-      가 {steps[i][0]}
+    <button type="button" className="fz" aria-label={`글씨 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
+      글씨 크기 <span style={{ whiteSpace: 'nowrap' }}>{steps[i][0]}</span>
     </button>
   );
 }
@@ -308,7 +311,7 @@ export function PrefsCard() {
   const steps = fontSteps();
   return (
     <div className="card">
-      <b>글자 크기</b>
+      <b>글씨 크기</b>
       <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
       <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
       <Switch label="소리 안내" on={!!p.speak && canSpeak} onClick={toggleSpeak} />
@@ -414,7 +417,7 @@ export const Mast = ({ children }: Kids) => <div className="mast">{children}</di
 
 export const Gnb = ({ brand, items = [], right }: { brand: string; items?: [string, string][]; right?: ReactNode }) => (
   <header className="gnb">
-    <span className="logo">{brand}</span>
+    <span className="logo"><Logo size={28} />{brand}</span>
     <nav>
       {items.map(([name, to]) => <NavLink key={name} to={to}>{name}</NavLink>)}
     </nav>
@@ -609,6 +612,7 @@ export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: s
   return (
     <Center>
       <Form onSubmit={submit}>
+        <Logo />
         <H>촌수의사 <Muted>{sub}</Muted></H>
         {expired && <Info tone="w">로그인이 만료됐어요. 다시 로그인하면 보던 화면으로 돌아가요.</Info>}
         <Input label="아이디" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} err={err.login_id} />

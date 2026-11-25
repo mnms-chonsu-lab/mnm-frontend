@@ -68,10 +68,32 @@ export function FS02() {
 }
 
 const HINTS = ['소독', '관찰', '접종', '출생', '폐사', '이동'];
+const TEXT_KEY = 'mnm-text-draft';
+/** 쓰던 글을 기기에 임시 저장 (새로고침·다시 들어와도 남게). 저장이 막힌 브라우저면 지금 화면에만 둔다 */
+const keepText = (t: string) => {
+  try {
+    if (t) localStorage.setItem(TEXT_KEY, t);
+    else localStorage.removeItem(TEXT_KEY);
+  } catch {
+    // 사생활 보호 모드 등
+  }
+};
+const keptText = () => {
+  try {
+    return localStorage.getItem(TEXT_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
 
 export function FS02T() {
   const nav = useNavigate();
-  const [text, setText] = useState(flow.draft?.raw_text ?? '');
+  const [text, setTextNow] = useState(() => flow.draft?.raw_text ?? keptText());
+  const setText = (f: (t: string) => string) => setTextNow((t) => {
+    const v = f(t);
+    keepText(v);
+    return v;
+  });
   const { submit, err, busy } = useSend(async () => {
     let d: RecordDraft;
     try {
@@ -80,6 +102,7 @@ export function FS02T() {
       if (!isServerErr(e)) throw e;
       d = { raw_text: text, intent: null, items: [], report_type: null, report_fields: null, missing: [], report_notice: null, fallback: 'select_input', audio_media_id: null };
     }
+    keepText(''); // 정리 초안으로 넘어가면 임시 저장은 지운다 (초안은 flow.draft에 있음)
     nav(afterDraft(d));
   });
   return (
@@ -87,7 +110,7 @@ export function FS02T() {
       <Dots n={3} on={0} />
       <H center>오늘 한 일을<br /><em>써 주세요</em></H>
       {flow.draft?.fallback === 'text_input' && <Info tone="w">말씀을 알아듣지 못했어요. 글로 써 주세요.</Info>}
-      <Input label="예: 2번 축사 소독함. 1234번 사료 남김" rows={4} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} err={err.text} />
+      <Input label="예: 2번 축사 소독함. 1234번 사료 남김" rows={4} maxLength={2000} value={text} onChange={(e) => setText(() => e.target.value)} err={err.text} />
       <Chips items={HINTS} onPick={(i) => setText((t) => (t ? t + ' ' : '') + HINTS[i])} />
       <Err>{err._}</Err>
       <Btn onClick={submit} disabled={busy || !text.trim()}>{busy ? '정리하는 중…' : '다 썼어요'}</Btn>
