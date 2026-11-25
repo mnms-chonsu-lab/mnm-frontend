@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
 import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Logo, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, digits, hyphen, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
-import { clearSent, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
+import { clearFarm, clearSent, flush, rememberFarm, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
 
 export { CowList } from './shared';
 
@@ -23,6 +23,7 @@ export function FS00() {
   const all = agree.every(Boolean);
   const { submit, err, busy } = useAuthForm(async () => {
     await farmerLogin(farmNo, phone);
+    rememberFarm(farmNo);
     goNext();
   });
   return (
@@ -63,6 +64,7 @@ function Outbox() {
   const n = useSent();
   const [busy, setBusy] = useState(false);
   useEffect(() => clearSent, []); // 홈을 떠나면 "보냈어요" 안내는 지운다
+  useEffect(() => void flush(), []); // 홈을 열 때 남은 기록을 한 번 더 보낸다 (서버 오류 뒤 남은 것)
   const wait = q.filter((x) => !x.failed).length;
   const bad = q.filter((x) => x.failed).length;
   return (
@@ -167,7 +169,7 @@ function LogoutBtn() {
           <H>로그아웃할까요?</H>
           <Row>
             <Btn v="t" onClick={() => setAsk(false)}>아니요</Btn>
-            <Btn onClick={() => (logout(), nav('/f-s00'))}>네</Btn>
+            <Btn onClick={() => (logout(), clearFarm(), nav('/f-s00'))}>네</Btn>
           </Row>
         </Modal>
       )}
