@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { api, newKey, type CopyText, type HistoryReport, type ReportType, type SubmitResult } from '@mnm/api-client';
+import { useRef, useState, type ReactNode } from 'react';
+import { api, newKey, type Cow, type CopyText, type HistoryReport, type ReportType, type SubmitResult } from '@mnm/api-client';
 import { Btn, Card, Chips, CopyBtn, Done, Dots, Err, H, Info, Input, KV, P, Phone, Pill, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
-import { dday, kday, tagFmt, useId, useSend } from './shared';
+import { cowDesc, dday, kday, tagFmt, useCows, useId, useSend } from './shared';
 
 /** 신고서 칸 이름과 순서 (mnm-dev `ReportFields`) */
 export const FIELD: Record<string, string> = {
@@ -44,12 +44,24 @@ export function FS04Q() {
   const [v, setV] = useState('');
   const x = r.data;
   const k = x?.missing[0];
-  const { submit, err, busy } = useSend(async () => {
-    const next = await api<HistoryReport>('/api/farmer/history-reports/' + id, { method: 'PATCH', body: { fields: { [k!]: v.trim() } } });
+  const cows = useCows().data?.items ?? [];
+  // 끝 4자리가 같은 소가 2마리 이상이면 후보를 보여 주고 고른 소의 12자리로 저장한다 (mnm-dev#35 합의)
+  const [cands, setCands] = useState<Cow[]>();
+  const chosen = useRef('');
+  const save = async (value: string) => {
+    const next = await api<HistoryReport>('/api/farmer/history-reports/' + id, { method: 'PATCH', body: { fields: { [k!]: value } } });
     setV('');
+    setCands(undefined);
     if (next.missing.length) r.reload();
     else nav(`${draftPath(next.type)}?id=${id}`, { replace: true });
+  };
+  const { submit, err, busy } = useSend(async () => {
+    const value = v.trim();
+    const same = (k === 'mother_tag4' || k === 'cow_tag') && /^\d{4}$/.test(value) ? cows.filter((c) => c.tag_last4 === value) : [];
+    if (same.length > 1) setCands(same);
+    else await save(value);
   });
+  const pick = useSend(() => save(chosen.current));
   return (
     <Phone title="신고서 초안" tab="홈" say={x?.next_question ?? undefined}>
       <Dots n={3} on={2} />
@@ -58,9 +70,21 @@ export function FS04Q() {
         <>
           <P><b>빈칸 {x.missing.length}개 남았어요</b></P>
           <H center>{x.next_question ?? `${FIELD[k] ?? k}을(를) 알려 주세요`}</H>
-          <FieldInput k={k} value={v} onChange={setV} err={err[`fields.${k}`] ?? err[k]} />
+          <FieldInput k={k} value={v} onChange={(y) => (setV(y), setCands(undefined))} err={err[`fields.${k}`] ?? err[k]} />
           <Err>{err._}</Err>
-          <Btn onClick={submit} disabled={busy || !v.trim()}>다음</Btn>
+          {cands ? (
+            <Card>
+              <b>{v.trim()}번이 {cands.length}마리예요. 어느 소예요?</b>
+              {cands.map((c) => (
+                <Btn key={c.cow_id} v="s" disabled={pick.busy} onClick={() => ((chosen.current = c.tag_full), void pick.submit())}>
+                  {c.tag_last4}번 · {cowDesc(c) || tagFmt(c.tag_full)}
+                </Btn>
+              ))}
+              <Err>{pick.err._ ?? pick.err[`fields.${k}`]}</Err>
+            </Card>
+          ) : (
+            <Btn onClick={submit} disabled={busy || !v.trim()}>다음</Btn>
+          )}
         </>
       )}
       {x && <Btn v="t" to={`${draftPath(x.type)}?id=${id}`}>나중에 채울게요</Btn>}
@@ -122,7 +146,7 @@ export function FS05() {
   const c = useApi<CopyText>(`/api/farmer/history-reports/${id}/copy-text`);
   const { submit, err, busy } = useSend(async () => {
     const s = await api<SubmitResult>(`/api/farmer/history-reports/${id}/submit`, { method: 'POST', body: { mode: 'self' } });
-    nav(`/f-s07?mode=self${s.ear_tag_due ? '&due=' + s.ear_tag_due : ''}`, { replace: true });
+    nav(`/f-s07?mode=self&id=${id}${s.ear_tag_due ? '&due=' + s.ear_tag_due : ''}`, { replace: true });
   });
   const x = c.data;
   return (
@@ -153,7 +177,9 @@ export function FS06() {
   const [key] = useState(newKey); // 다시 눌러도 한 번만 부탁된다
   const { submit, err, busy } = useSend(async () => {
     const s = await api<SubmitResult>(`/api/farmer/history-reports/${id}/submit`, { method: 'POST', body: { mode: 'coop' }, headers: { 'Idempotency-Key': key } });
-    nav(`/f-s07?mode=coop&org=${encodeURIComponent(s.org_name ?? '')}`, { replace: true });
+    // 출생 신고인데 송아지 귀표가 없으면 축협이 신고를 마친 날부터 귀표 30일 할 일이 생긴다 (mnm-dev RCV-10)
+    const birth = r.data?.type === '출생' && !r.data.fields.calf_tag;
+    nav(`/f-s07?mode=coop&id=${id}&org=${encodeURIComponent(s.org_name ?? '')}${birth ? '&birth=1' : ''}`, { replace: true });
   });
   const x = r.data;
   const org = x?.farm.org_name ?? '담당 축협';
@@ -199,6 +225,13 @@ export function FS07() {
           <span>귀표를 <b>{kday(due)}</b>까지 달아 주세요. 홈 할 일에 넣어 두었어요.</span>
         </Card>
       )}
+      {coop && q.get('birth') && (
+        <Card>
+          <b>다음 할 일</b>
+          <span>축협이 출생 신고를 마친 날부터 <b>30일 안에</b> 송아지 귀표를 달아 주세요. 신고를 마치면 기한을 홈 할 일에 넣어 드려요.</span>
+        </Card>
+      )}
+      {q.get('id') && <Btn v="s" to={`/f-s04?id=${q.get('id')}`}>축협 직원에게 화면으로 보여주기</Btn>}
       <Btn v="s" to="/f-s15">농장 일지 보기</Btn>
       <Btn to="/f-s01">처음 화면으로</Btn>
     </Phone>

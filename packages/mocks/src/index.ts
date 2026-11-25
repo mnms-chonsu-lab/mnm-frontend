@@ -1,7 +1,7 @@
 // 화면 검토용 배포(API 주소 없음)에서 GET 응답 대신 쓰는 가짜 데이터. 실제 농가 정보가 아닌 예시 값만 쓴다
 // 키는 쿼리를 뺀 API 경로. 쿼리(필터·검색)는 무시하고 같은 값을 준다
 export * from './farmer';
-import type { AdminDelivery, AdminUser, AdminUserRow, AiMetrics, AuditLog, EtlJob, EtlRun, Guide, Health, InferenceLog, Org, Page, TodayMetrics } from '@mnm/api-client';
+import type { AdminDelivery, AdminUser, AdminUserRow, AiMetrics, AuditLog, EtlJob, EtlRun, Guide, Health, InferenceLog, Me, Org, Page, TodayMetrics } from '@mnm/api-client';
 
 const page = <R,>(items: R[]): Page<R> => ({ items, has_next: false, next_cursor: null });
 const AT = '2026-11-14T01:02:00Z';
@@ -47,6 +47,7 @@ const ai = (feature: string | null, calls: number, failures: number, avg: number
   ({ feature, calls, failures, error_rate: calls ? failures / calls : null, avg_latency_ms: avg, no_evidence: 0, bad_input: 0 });
 
 export const adminMocks: Record<string, unknown> = {
+  '/api/auth/me': { users_id: 9, role: 'admin', name: '이운영', login_id: 'ops.lee', must_change_pw: false, org: null, inbox_id: null } satisfies Me,
   '/api/admin/health': {
     checked_at: AT,
     components: [
