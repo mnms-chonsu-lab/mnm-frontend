@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, farmerLogin, logout, type Alert, type Home, type MyFarm, type Sent, type TaskKind } from '@mnm/api-client';
-import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Logo, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage } from '@mnm/ui';
+import { Btn, Card, Err, Form, H, Info, Input, KV, Link, Logo, Modal, Muted, P, Phone, Pill, PrefsCard, Row, Status, Tile, setUnread, useApi, useAuthForm, useGoNext, useNavigate, usePage, useSearchParams } from '@mnm/ui';
 import { CowList, RECEIVER, RESULT, digits, hyphen, kat, kday, tel, useCows, useSend, useServerPrefs } from './shared';
 import { clearFarm, clearSent, flush, rememberFarm, retryFailed, useFarmCache, useQueue, useSent } from './outbox';
 
@@ -17,6 +17,7 @@ function useMemoState<K extends keyof typeof memo>(key: K, init: NonNullable<(ty
 
 export function FS00() {
   const goNext = useGoNext('/f-s01');
+  const expired = useSearchParams()[0].get('expired');
   const [farmNo, setFarmNo] = useMemoState('farmNo', '');
   const [phone, setPhone] = useMemoState('phone', '');
   const [agree, setAgree] = useMemoState('agree', CONSENTS.map(() => true)); // 3개 모두 필수라 기본 전체 체크
@@ -31,6 +32,7 @@ export function FS00() {
       <Form onSubmit={submit}>
         <Logo />
         <H>농장식별번호로<br /><em>시작해요</em></H>
+        {expired && <Info tone="w">다시 로그인해 주세요. 쓰던 기록은 그대로 있어요.</Info>}
         <Input label="농장식별번호 6자리" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="username" value={farmNo} onChange={(e) => setFarmNo(digits(e.target.value))} err={err.farm_no} />
         <Input label="휴대폰 번호 010-0000-0000" type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(hyphen(e.target.value))} err={err.phone} />
         <Err>{err._}</Err>

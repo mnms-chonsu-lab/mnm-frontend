@@ -3,8 +3,8 @@ import {
   api, ApiError, newKey, uploadFile,
   type Actions, type Answer, type Behavior, type Delivered, type Facility, type FarmerMe, type Page, type PartCheck, type Question, type Summary, type SymptomSaved, type UploadForm,
 } from '@mnm/api-client';
-import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Modal, Muted, P, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
-import { CowList, PART, cowDesc, cowName, flow, kday, useCows, useId, useSend } from './shared';
+import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Modal, Muted, P, openSheet, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
+import { CowList, PART, cowDesc, cowName, flow, isServerErr, kday, useCows, useId, useSend } from './shared';
 import { enqueue } from './outbox';
 
 /** 소 상태 확인 흐름 공통 틀 */
@@ -420,22 +420,37 @@ const Check1 = ({ on, set, children }: { on: boolean; set: (v: boolean) => void;
   <label><input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> <b>{children}</b></label>
 );
 
-/** 승인 → 전달. 같은 화면에서 다시 눌러도 한 번만 전달된다(Idempotency-Key). 인터넷이 없으면 대기열에 넣고 F-E04 */
+/**
+ * 승인 → 전달. 같은 화면에서 다시 눌러도 한 번만 전달된다(Idempotency-Key). 인터넷이 없으면 대기열에 넣고 F-E04.
+ * 이미 보냈으면(409) 완료 화면에 "이미 보냈어요", 전달 실패(5xx)면 [다시 시도][전화로 신고][나중에 보내기] 시트 (오류·예외 DELIVER-FAIL)
+ */
 function useDeliver(route: 'call' | 'coop' | 'web' | 'gov', opts: { send_to_coop?: boolean; share_phone: boolean }, after: (d: Delivered) => string) {
   const id = useId();
   const nav = useNavigate();
   const [key] = useState(newKey);
-  return useSend(async () => {
+  const later = () => enqueue({ key, symptom_report_id: Number(id), route, ...opts, approved_at: new Date().toISOString() });
+  const f = useSend(async () => {
     try {
       const d = await api<Delivered>('/api/farmer/deliveries', { method: 'POST', body: { symptom_report_id: Number(id), route, ...opts }, headers: { 'Idempotency-Key': key } });
       nav(after(d), { replace: true });
     } catch (e) {
-      if (!(e instanceof ApiError && e.code === 'NET-OFF')) throw e;
-      // 승인 시각은 지금 누른 시각으로, 같은 키로 나중에 한 번만 보낸다 (SOS-OFFLINE ③)
-      enqueue({ key, symptom_report_id: Number(id), route, ...opts, approved_at: new Date().toISOString() });
-      nav('/f-e04?queued=1');
+      if (e instanceof ApiError && e.code === 'CONFLICT-409') {
+        const d: Delivered = { delivery_id: 0, route, status: 'delivered', org_name: null, cc_org_name: null, approved_at: '', disease: flow.summary?.disease ?? null, form6_text: null };
+        nav(after(d) + '&dup=1', { replace: true });
+      } else if (isServerErr(e)) {
+        openSheet({
+          title: '아직 보내지 못했어요',
+          body: '다시 보내거나 전화로 신고해 주세요.',
+          actions: [['다시 시도', () => void f.submit(), 'p'], ['전화로 신고', () => nav('/f-e04'), 'd'], ['나중에 보내기', () => (later(), nav('/f-s01')), 't']],
+        });
+      } else if (e instanceof ApiError && e.code === 'NET-OFF') {
+        // 승인 시각은 지금 누른 시각으로, 같은 키로 나중에 한 번만 보낸다 (SOS-OFFLINE ③)
+        later();
+        nav('/f-e04?queued=1');
+      } else throw e;
     }
   });
+  return f;
 }
 
 const sendWhat = (s?: Summary) => (s ? `오늘 요약 1장${s.photos.length ? ` · 사진 ${s.photos.length}장` : ''}${s.video ? ' · 영상 1개' : ''}` : '오늘 요약 1장');
@@ -490,7 +505,7 @@ export function FS14() {
   return (
     <Phone title="전달 완료" back={false} tab="홈">
       <Done />
-      <H center>잘 전달됐어요</H>
+      <H center>{q.get('dup') ? '이미 보냈어요' : '잘 전달됐어요'}</H>
       <P center>{q.get('org') || '담당 기관'} 담당자가 기록을 보고 곧 연락드릴 거예요</P>
       <NowDo disease={q.get('d')} />
       {f.data && (
@@ -541,6 +556,7 @@ export function FS14P() {
   const cc = q.get('cc');
   return (
     <Check title="전화로 신고">
+      {q.get('dup') && <Info tone="ok">이미 보냈어요.</Info>}
       <H center>이제 <span className="red">전화로 신고</span>해 주세요</H>
       <CallNumber />
       <CallBtn />
@@ -558,6 +574,7 @@ export function FS14W() {
   const x = s.data;
   return (
     <Check title="인터넷 신고서">
+      {q.get('dup') && <Info tone="ok">이미 보냈어요.</Info>}
       <H center>신고서 항목을<br /><em>복사해 붙여넣어 주세요</em></H>
       <Status q={s} />
       {x?.form6_text ? (

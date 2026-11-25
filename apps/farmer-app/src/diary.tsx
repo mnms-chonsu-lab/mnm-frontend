@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Category, type DiaryDay, type DiaryDetail, type DiaryEntry, type DiarySaved, type DraftItem, type HistoryReport, type RecordDraft } from '@mnm/api-client';
 import { Btn, Card, Chips, Dots, Err, H, Info, Input, KV, Muted, P, Phone, Pill, Row, Select, Status, useApi, useNavigate, usePage } from '@mnm/ui';
-import { RECEIVER, cowName, flow, kat, kday, kdow, dday, useCows, useId, useSend } from './shared';
+import { RECEIVER, cowName, flow, isServerErr, kat, kday, kdow, dday, useCows, useId, useSend } from './shared';
 
 /** 정리 초안을 받으면: 음성 인식 실패 → 글로 쓰기, 정리 실패 → 직접 고르기, 아니면 확인 화면 */
 const afterDraft = (d: RecordDraft) => {
@@ -95,7 +95,13 @@ export function FS02T() {
     return v;
   });
   const { submit, err, busy } = useSend(async () => {
-    const d = await api<RecordDraft>('/api/farmer/records/text', { method: 'POST', body: { text } });
+    let d: RecordDraft;
+    try {
+      d = await api<RecordDraft>('/api/farmer/records/text', { method: 'POST', body: { text } });
+    } catch (e) {
+      if (!isServerErr(e)) throw e;
+      d = { raw_text: text, intent: null, items: [], report_type: null, report_fields: null, missing: [], report_notice: null, fallback: 'select_input', audio_media_id: null };
+    }
     keepText(''); // 정리 초안으로 넘어가면 임시 저장은 지운다 (초안은 flow.draft에 있음)
     nav(afterDraft(d));
   });
@@ -199,7 +205,7 @@ function DraftEdit() {
   return (
     <Phone title="기록 고치기" tab="홈" say="어떤 기록인가요? 종류를 고르고 내용을 확인해 주세요.">
       <H>어떤 <em>기록</em>인가요?</H>
-      {flow.draft?.fallback === 'select_input' && <Info tone="w">내용을 정리하지 못했어요. 종류를 직접 골라 주세요.</Info>}
+      {flow.draft?.fallback === 'select_input' && <Info tone="w">자동으로 정리하지 못했어요. 어떤 기록인지 골라 주세요.</Info>}
       {items.map((x, i) => <ItemEdit key={i} x={x} onChange={(y) => setItems(items.map((z, j) => (j === i ? y : z)))} />)}
       <Row>
         <Btn v="t" onClick={() => setItems([...items, blank()])}>+ 항목 더하기</Btn>

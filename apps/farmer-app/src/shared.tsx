@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { api, apiReady, getSession, type AnswerKey, type Answer, type Cow, type Page, type RecordDraft, type Settings, type Summary, type SymptomSaved } from '@mnm/api-client';
-import { Opt, Status, fontSteps, setPrefs, setPrefsSaver, useApi, useAuthForm, useSearchParams } from '@mnm/ui';
+import { api, ApiError, apiReady, getSession, type AnswerKey, type Answer, type Cow, type Page, type RecordDraft, type Settings, type Summary, type SymptomSaved } from '@mnm/api-client';
+import { Opt, Status, fontSteps, openSheet, setPrefs, setPrefsSaver, useApi, useAuthForm, useSearchParams } from '@mnm/ui';
 
 /* ---------- 화면 사이에 이어지는 흐름 (새로고침하면 처음부터) ---------- */
 /** 말·글 기록 정리 초안 (F-S02 → F-S03 → F-S03E) · 소 상태 확인 (F-S08 → F-S11) */
@@ -13,8 +13,21 @@ export const flow: {
 /** ?id= 값. API 주소가 없는 화면 검토용 빌드는 가짜 데이터 1번 */
 export const useId = (key = 'id') => useSearchParams()[0].get(key) ?? (apiReady ? '' : '1');
 
-/** 농가 화면 저장 버튼: 보내는 중 · 칸별 문구 · 서버 문구 */
-export const useSend = (send: () => Promise<void>) => useAuthForm(send);
+/** 서버 오류(5xx)·응답 지연이면 칸 아래 한 줄 대신 바텀시트로 (오류·예외 SRV-5XX·TIMEOUT). 입력은 그대로 둔다 */
+export const isServerErr = (e: unknown): e is ApiError => e instanceof ApiError && (e.status >= 500 || e.code === 'TIMEOUT');
+
+/** 농가 화면 저장 버튼: 보내는 중 · 칸별 문구 · 서버 문구. 서버 오류면 [다시 시도] 시트 */
+export function useSend(send: () => Promise<void>) {
+  const f = useAuthForm(async () => {
+    try {
+      await send();
+    } catch (e) {
+      if (!isServerErr(e)) throw e;
+      openSheet({ title: '잠시 문제가 생겼어요', body: '입력하신 내용은 그대로 있어요. 다시 시도해 주세요.', actions: [['다시 시도', () => void f.submit(), 'p'], ['닫기', () => {}, 't']] });
+    }
+  });
+  return f;
+}
 
 /* ---------- 글자 ---------- */
 /** "2026-11-02" → "11월 2일" */
