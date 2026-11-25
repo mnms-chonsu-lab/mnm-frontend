@@ -35,9 +35,11 @@ function NowDoList({ disease }: { disease: string }) {
   const a = useApi<Actions>(`/api/farmer/guide/actions?disease=${disease}`);
   const [open, setOpen] = useState(false);
   const x = a.data;
+  // 게시된 문구가 없으면(RAG-NONE) 안내 문구 대신 [바로 신고]·담당 축협 연결
+  if ((x && x.actions.length === 0) || a.err?.code === 'RAG-NONE') return <NoGuide />;
   return (
     <Card>
-      <b>지금 해 주세요{x && ` · ${x.guide_name}`}</b>
+      <b>지금 해 주세요{x?.guide_name && ` · ${x.guide_name}`}</b>
       <Status q={a} />
       {x?.actions.map((y, i) => <span key={y.rule_id}>{i + 1}. {y.text}</span>)}
       {!!x?.actions.length && (
@@ -58,6 +60,17 @@ function NowDoList({ disease }: { disease: string }) {
           <Btn onClick={() => setOpen(false)}>닫기</Btn>
         </Modal>
       )}
+    </Card>
+  );
+}
+
+function NoGuide() {
+  const org = useApi<FarmerMe>('/api/auth/me').data?.farm?.org_name;
+  return (
+    <Card>
+      <b>이 내용은 담당자에게 직접 확인해 주세요.</b>
+      {org && <span>담당 축협: {org}</span>}
+      <Btn v="d" to="/f-p01">바로 신고 1588-9060</Btn>
     </Card>
   );
 }
