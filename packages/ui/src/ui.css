@@ -25,6 +25,7 @@ small { display: block; font-size: 0.8rem; font-weight: 400; color: var(--g70); 
 a { color: var(--p60); }
 
 .h { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; text-wrap: balance; }
+.brand { flex: none; align-self: flex-start; }
 .p { margin: 0; color: var(--g70); }
 .c { text-align: center; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -136,7 +137,7 @@ a { color: var(--p60); }
 .mast { padding: 6px 16px; background: var(--g90); color: #fff; font-size: 0.85rem; }
 .mast.w { background: var(--w5); color: var(--w50); font-weight: 700; }
 .gnb { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; padding: 8px 16px; background: var(--g0); border-bottom: 1px solid var(--g10); }
-.gnb .logo { font-weight: 700; font-size: 1.1rem; }
+.gnb .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; }
 .gnb nav { display: flex; gap: 4px; overflow-x: auto; }
 .gnb .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .gnb .fz { min-height: 40px; padding: 0 10px; border: 1px solid var(--g20); border-radius: 8px; background: var(--g0); color: var(--g90); font-size: 0.85rem; }
