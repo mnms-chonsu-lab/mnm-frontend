@@ -33,6 +33,8 @@ function Tap({ to, className, children }: Kids & { to?: To; className: string })
 
 /* ---------- 공통 블록 ---------- */
 export const H = ({ center, children }: Kids & { center?: boolean }) => <h1 className={'h' + (center ? ' c' : '')}>{children}</h1>;
+/** 촌수의사 로고 (packages/ui/public/favicon.svg). 글자가 옆에 있으니 alt는 비운다 */
+export const Logo = ({ size = 56 }: { size?: number }) => <img className="brand" src="/favicon.svg" alt="" width={size} height={size} />;
 export const P = ({ center, children }: Kids & { center?: boolean }) => <p className={'p' + (center ? ' c' : '')}>{children}</p>;
 export const Pill = ({ tone, children }: Kids & { tone?: Tone }) => <span className={'pill ' + (tone ?? '')}>{children}</span>;
 export const Row = ({ children }: Kids) => <div className="row">{children}</div>;
@@ -389,7 +391,7 @@ export const Mast = ({ children }: Kids) => <div className="mast">{children}</di
 
 export const Gnb = ({ brand, items = [], right }: { brand: string; items?: [string, string][]; right?: ReactNode }) => (
   <header className="gnb">
-    <span className="logo">{brand}</span>
+    <span className="logo"><Logo size={28} />{brand}</span>
     <nav>
       {items.map(([name, to]) => <NavLink key={name} to={to}>{name}</NavLink>)}
     </nav>
@@ -569,6 +571,7 @@ export function WebLogin({ role, home, sub }: { role: Role; home: string; sub: s
   return (
     <Center>
       <Form onSubmit={submit}>
+        <Logo />
         <H>촌수의사 <Muted>{sub}</Muted></H>
         <Input label="아이디" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} err={err.login_id} />
         <Input label="비밀번호" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} err={err.password} />
