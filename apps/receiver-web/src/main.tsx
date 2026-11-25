@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   api, ApiError, logout, qs, setMocks,
-  type DiaryItem, type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
+  type DiaryItem, type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type JurisdictionFarm, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
 } from '@mnm/api-client';
 import { receiverMocks } from '@mnm/mocks';
 import {
@@ -422,10 +422,25 @@ function Nudge({ farmId }: { farmId: number }) {
   return <>{<Btn v="t" onClick={submit} disabled={busy}>다시 알리기</Btn>}<Err>{err._}</Err></>;
 }
 
+/** [연락하기]: 농가가 연락처를 함께 보낸 경우에만 (R-P01과 같은 모양, 메모는 기록마다라 접수함에서) */
+const Contact = ({ f, onClose }: { f: JurisdictionFarm; onClose: () => void }) => (
+  <Modal onClose={onClose}>
+    <H>농가에 연락하기</H>
+    <P>{f.name}</P>
+    <Row>
+      <H>{tel(f.phone!)}</H>
+      <CopyBtn text={f.phone!}>번호 복사</CopyBtn>
+    </Row>
+    <Btn href={'tel:' + f.phone!.replace(/\D/g, '')}>전화 걸기</Btn>
+    <Btn v="t" onClick={onClose}>닫기</Btn>
+  </Modal>
+);
+
 function RS03() {
   const j = useApi<Jurisdiction>('/api/receiver/jurisdiction/farms');
   const k = j.data?.kpis;
   const farms = j.data?.farms ?? [];
+  const [call, setCall] = useState<JurisdictionFarm>();
   return (
     <Page>
       <Pad>
@@ -443,10 +458,12 @@ function RS03() {
               md(f.last_record_date),
               f.next_task ? `${f.next_task.title} D-${f.next_task.d_day}` : '-',
               f.alert_state ? ALERT[f.alert_state] : '-',
-              f.alert_state === 'unanswered' ? <Nudge farmId={f.farm_id} /> : '',
+              // 미응답(48시간 넘게 안 읽음)만 다시 알릴 수 있다(RCV-07). 그 밖에 연락처를 받은 농가는 [연락하기]
+              f.alert_state === 'unanswered' ? <Nudge farmId={f.farm_id} /> : f.phone ? <Btn v="t" onClick={() => setCall(f)}>연락하기</Btn> : '',
             ])}
           />
         )}
+        {call && <Contact f={call} onClose={() => setCall(undefined)} />}
       </Pad>
     </Page>
   );
