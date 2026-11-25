@@ -5,8 +5,8 @@ import { CallBtn, CallNumber } from './check';
 import { cowName, flow, kday, kfull, tagFmt, tel, useCows, useId, useSend } from './shared';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
-const Popup = ({ title, banner, children }: { title: string; banner?: string; children: ReactNode }) => (
-  <Phone title={title} report={false} banner={banner}>
+const Popup = ({ title, children }: { title: string; children: ReactNode }) => (
+  <Phone title={title} report={false}>
     <Sheet>{children}</Sheet>
   </Phone>
 );
@@ -269,8 +269,6 @@ export function FP06() {
   );
 }
 
-const OFFLINE = '⚠ 인터넷이 연결되지 않았어요';
-
 // shortcut: 점검 화면은 MVP 제외(점검 API 없음), 예시 문구 그대로
 export const FE01 = () => (
   <Phone title="촌수의사" back={false} report={false}>
@@ -283,7 +281,7 @@ export const FE01 = () => (
 );
 
 export const FE02 = () => (
-  <Popup title="보내기 전 확인" banner={OFFLINE}>
+  <Popup title="보내기 전 확인">
     <H>아직 보내지 못했어요</H>
     <P>입력하신 내용은 그대로 있어요.</P>
     <Btn to={-1}>다시 시도</Btn>
@@ -296,7 +294,7 @@ export const FE02 = () => (
 export function FE04() {
   const s = flow.summary;
   return (
-    <Phone title="신고할 때 말할 내용" report={false} banner={navigator.onLine ? undefined : OFFLINE}>
+    <Phone title="신고할 때 말할 내용" report={false}>
       <H>먼저 <span className="red">전화로</span><br />신고해 주세요</H>
       <CallBtn>전화 걸기 1588-9060</CallBtn>
       {s ? (

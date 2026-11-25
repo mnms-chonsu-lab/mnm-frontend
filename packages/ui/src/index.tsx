@@ -271,6 +271,19 @@ export function PrefsCard() {
   );
 }
 
+/* ---------- 인터넷 연결 (NET-OFF) ---------- */
+const onNet = (f: () => void) => {
+  addEventListener('online', f);
+  addEventListener('offline', f);
+  return () => {
+    removeEventListener('online', f);
+    removeEventListener('offline', f);
+  };
+};
+/** 지금 인터넷이 연결돼 있는지. 끊기거나 다시 연결되면 다시 그린다 */
+export const useOnline = () => useSyncExternalStore(onNet, () => navigator.onLine);
+const OFFLINE = '⚠ 인터넷이 연결되지 않았어요. 연결되면 이어서 보낼게요.';
+
 /* ---------- 농가 앱 틀 ---------- */
 // 하단 탭 [알림]의 안 읽은 수 (홈 요약 FARM-05에서 채움)
 let unread = 0;
@@ -285,12 +298,14 @@ const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알
 
 /**
  * 농가 앱 화면 틀. 헤더·하단 탭·[바로 신고] 고정 버튼을 그린다.
- * tab: 하단 탭에서 켜질 항목(없으면 탭 숨김), report: [바로 신고] 고정 버튼 표시
+ * tab: 하단 탭에서 켜질 항목(없으면 탭 숨김), report: [바로 신고] 고정 버튼 표시.
+ * 인터넷이 끊긴 동안은 모든 화면 위에 안내 띠를 고정하고, 다시 연결되면 없앤다 (NET-OFF)
  */
 export function Phone({ title, back = true, tab, report = true, banner, say, children }: Kids & { title: string; back?: boolean; tab?: string; report?: boolean; banner?: string; say?: string }) {
   const go = useGo();
   const p = usePrefs();
   const n = useUnread();
+  const online = useOnline();
   useEffect(() => {
     // shortcut: 소리 안내 문구(say)가 없으면 화면 제목을 읽는다, 화면별 문구 연결 시 say를 채운다
     screenText = () => say ?? document.querySelector('.h')?.textContent ?? title;
@@ -299,6 +314,7 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
   }, [say, title]);
   return (
     <div className="phone">
+      {!online && <div className="mast w" role="status">{OFFLINE}</div>}
       {banner && <div className="mast w">{banner}</div>}
       <header className="hdr">
         {back && <button type="button" className="bk" aria-label="뒤로" onClick={go(-1)}>‹</button>}
