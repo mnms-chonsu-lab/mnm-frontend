@@ -122,19 +122,80 @@ export function FS08S() {
   );
 }
 
-/* ---------- F-S09Q 몇 마리 ---------- */
-// shortcut: "2마리 이상"은 2로 보낸다, 정확한 수를 묻는 화면이 생기면 숫자로 받는다
-const HEADS: [string, number | null][] = [['1마리', 1], ['2마리 이상', 2], ['잘 모르겠어요', null]];
+/* ---------- F-S09Q 신고서 빈칸 묻기: 몇 마리 · 언제 · 어느 축사 (시행규칙 제13조 항목) ---------- */
+/** 이 기기 날짜로 n일 전 "YYYY-MM-DD" */
+const daysAgo = (n: number) => {
+  const d = new Date(Date.now() - n * 864e5);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// "2~3일 전"은 이른 쪽(3일 전)으로 적는다 — 처음 본 날은 늦게 적는 것보다 이르게 적는 편이 안전 (제안값)
+const WHEN: [string, number][] = [['오늘', 0], ['어제', 1], ['2~3일 전', 3]];
 
 export function FS09Q() {
   const nav = useNavigate();
+  const cows = useCows().data?.items ?? [];
+  const cow = cows.find((c) => c.cow_id === flow.check.cowId);
+  const [i, setI] = useState(0);
+  const [more, setMore] = useState(false); // 2마리 이상 → 숫자 / 날짜 고르기 / 다른 축사 말하기
+  const [v, setV] = useState('');
+  const next = () => {
+    setMore(false);
+    setV('');
+    if (i < 2) setI(i + 1);
+    else nav('/f-s09');
+  };
+  const c = flow.check;
+  const set = (f: () => void) => () => (f(), next());
   return (
-  <Check>
-    <Steps n={3} on={0} />
-    <P><b>신고서에 들어가요 · 1 / 3</b></P>
-    <H>이런 모습인 소가<br /><em>몇 마리</em>인가요?</H>
-    {HEADS.map(([x, n]) => <Btn key={x} v="s" onClick={() => ((flow.check.headCount = n), nav('/f-s09'))}>{x}</Btn>)}
-  </Check>
+    <Check>
+      <Steps n={3} on={i} />
+      <P><b>신고서에 들어가요 · {i + 1} / 3</b></P>
+      {i === 0 && (
+        <>
+          <H>이런 모습인 소가<br /><em>몇 마리</em>인가요?</H>
+          <Btn v="s" onClick={set(() => (c.headCount = 1))}>1마리</Btn>
+          {more ? (
+            <Row>
+              <Input label="몇 마리 (숫자)" type="number" inputMode="numeric" min={2} value={v} onChange={(e) => setV(e.target.value)} />
+              <Btn onClick={set(() => (c.headCount = Number(v)))} disabled={!(Number(v) >= 2)}>다음</Btn>
+            </Row>
+          ) : (
+            <Btn v="s" onClick={() => setMore(true)}>2마리 이상</Btn>
+          )}
+          <Btn v="s" onClick={set(() => (c.headCount = null))}>잘 모르겠어요</Btn>
+        </>
+      )}
+      {i === 1 && (
+        <>
+          <H>언제 <em>처음</em> 봤나요?</H>
+          {WHEN.map(([x, n]) => <Btn key={x} v="s" onClick={set(() => (c.foundDate = daysAgo(n)))}>{x}</Btn>)}
+          {more ? (
+            <Row>
+              <Input label="처음 본 날" type="date" max={daysAgo(0)} value={v} onChange={(e) => setV(e.target.value)} />
+              <Btn onClick={set(() => (c.foundDate = v))} disabled={!v}>다음</Btn>
+            </Row>
+          ) : (
+            <Btn v="s" onClick={() => setMore(true)}>날짜 고르기</Btn>
+          )}
+        </>
+      )}
+      {i === 2 && (
+        <>
+          <H>어느 <em>축사</em>인가요?</H>
+          {cow?.barn && <Btn v="s" onClick={set(() => (c.barn = cow.barn!))}>{cow.barn}</Btn>}
+          {more || !cow?.barn ? (
+            <Row>
+              <Input label="예: 2번 축사" maxLength={50} value={v} onChange={(e) => setV(e.target.value)} />
+              <Btn onClick={set(() => (c.barn = v.trim()))} disabled={!v.trim()}>다음</Btn>
+            </Row>
+          ) : (
+            <Btn v="s" onClick={() => setMore(true)}>다른 곳 말하기</Btn>
+          )}
+          <Btn v="t" onClick={set(() => (c.barn = undefined))}>잘 모르겠어요</Btn>
+        </>
+      )}
+      {i > 0 && <Btn v="t" onClick={() => (setI(i - 1), setMore(false), setV(''))}>이전 질문</Btn>}
+    </Check>
   );
 }
 
@@ -152,7 +213,7 @@ export function FS09() {
     const c = flow.check;
     const saved = await api<SymptomSaved>('/api/farmer/symptom-reports', {
       method: 'POST',
-      body: { cow_id: c.cowId ?? null, answers: { drool: 'unknown', blister: 'unknown', feed: 'unknown', lump: 'unknown', ...c.answers }, observed_text: c.observed, head_count: c.headCount ?? undefined },
+      body: { cow_id: c.cowId ?? null, answers: { drool: 'unknown', blister: 'unknown', feed: 'unknown', lump: 'unknown', ...c.answers }, observed_text: c.observed, head_count: c.headCount ?? undefined, found_date: c.foundDate, barn: c.barn },
     });
     c.saved = saved;
     nav(saved.required_parts.length ? '/f-s10' : `/f-s11?id=${saved.symptom_report_id}`, { replace: true });
@@ -283,7 +344,7 @@ const useSummary = () => {
 function SummaryCard({ s }: { s: Summary }) {
   return (
     <Card>
-      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 && <Pill tone="d">공식 증상 {s.matched_count}개</Pill>}</span>
+      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 ? <Pill tone="d">공식 증상 {s.matched_count}개</Pill> : <Pill tone="g">해당 없음</Pill>}</span>
       {s.matched.map((m) => <span key={m}>· {m} <Official /></span>)}
       {s.observed_text && <span>· 본 것: {s.observed_text}</span>}
       <span>· 처음 본 날 {kday(s.found_date)}{s.head_count != null && ` · ${s.head_count}마리`}{s.barn && ` · ${s.barn}`}</span>
@@ -492,7 +553,7 @@ export function FS14W() {
       {x && x.photos.some((p) => p.url) && (
         <Row>{x.photos.filter((p) => p.url).map((p) => <Btn key={p.media_id} v="s" href={p.url!}>{PART[p.part] ?? p.part} 사진 열기</Btn>)}</Row>
       )}
-      <Info tone="w">급하면 전화가 더 빨라요 · 1588-9060</Info>
+      <Info tone="w"><a href="tel:15889060">급하면 전화가 더 빨라요 · 1588-9060</a></Info>
       <NowDo disease={q.get('d')} />
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Check>

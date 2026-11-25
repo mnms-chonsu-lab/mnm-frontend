@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   api, ApiError, logout, qs, setMocks,
-  type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
+  type DiaryItem, type Form6, type GuideDoc, type InboxDetail, type InboxList, type Jurisdiction, type JurisdictionFarm, type Me, type ReceiverResult, type ReceiverStatus, type Route, type StatusResult, type WeeklyStats,
 } from '@mnm/api-client';
 import { receiverMocks } from '@mnm/mocks';
 import {
@@ -41,6 +41,8 @@ const at = (iso: string | null) => {
 const tel = (p: string) => p.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
 /** "2026-11-02" → "11.02" */
 const md = (date: string | null) => (date ? date.slice(5).replace('-', '.') : '-');
+/** 일지 한 건 → "10.08 구제역 백신 전체" (없으면 -) */
+const entry = (e: DiaryItem | null) => (e ? [md(e.date), e.vaccine_type, e.value].filter(Boolean).join(' ') : '-');
 
 /** 로그인 후 화면 공통 틀: 안내 띠 + 상단 메뉴 (소속 · 이름은 AUTH-03) */
 function Page({ children }: { children: ReactNode }) {
@@ -80,6 +82,14 @@ const Conflict = ({ id }: { id?: string | null }) => (
     <Btn onClick={() => location.assign('/r-s02' + qs({ id }))}>최신 상태로 보기</Btn>
   </Modal>
 );
+
+/** 없는 기록(404)·관할 밖 기록(403)이면 전체 페이지 오류(R-E01)로 */
+function useErrorPage(e?: ApiError) {
+  const nav = useNavigate();
+  useEffect(() => {
+    if (e && (e.status === 404 || e.status === 403)) nav('/r-e01' + qs({ code: e.status, rid: e.requestId }), { replace: true });
+  }, [e]); // eslint-disable-line react-hooks/exhaustive-deps
+}
 
 /* ---------- R-S02 접수된 기록 + 한 장 요약 (RCV-01·02) ---------- */
 const FILTERS: ['all' | ReceiverStatus, string][] = [['all', '전체'], ['new', '새로 도착'], ['checking', '확인 중'], ['done', '처리 완료']];
@@ -126,6 +136,7 @@ function Detail({ id }: { id: string }) {
   const d = useApi<InboxDetail>('/api/receiver/inbox/' + id);
   const [conflict, setConflict] = useState(false);
   const x = d.data;
+  useErrorPage(d.err);
   const move = (status: 'checking') => async () => {
     try {
       await api<StatusResult>(`/api/receiver/inbox/${id}/status`, { method: 'PATCH', body: { status, expected_status: x!.status } });
@@ -179,13 +190,13 @@ function Detail({ id }: { id: string }) {
         <Card>
           <b>농장 기본 정보</b>
           <span>{x.farm.address} · 사육 {x.farm.head_count ?? '-'}두</span>
-          {x.basics && <span>최근 접종 {x.basics.vaccine ?? '-'} · 최근 소독 {x.basics.disinfection ?? '-'} · 외부 출입 {x.basics.visit ?? '-'}</span>}
+          {x.basics && <span>최근 접종 {entry(x.basics.vaccine)} · 최근 소독 {entry(x.basics.disinfection)} · 외부 출입 {entry(x.basics.visit)}</span>}
         </Card>
       </Row>
       <Card>
         <b>최근 14일 일지</b>
         {x.diary.length === 0 && <Muted>기록이 없어요.</Muted>}
-        {x.diary.map((e, i) => <span key={i}>{md(e.date)} {e.category}{e.cow_tag4 && ` · ${e.cow_tag4}번`} {e.value}</span>)}
+        {x.diary.map((e, i) => <span key={i}>{md(e.date)} {e.category}{e.cow_tag4 && ` · ${e.cow_tag4}번`} {[e.vaccine_type, e.value].filter(Boolean).join(' ')}</span>)}
       </Card>
       <Row>
         <Card>
@@ -214,6 +225,7 @@ function RS02B() {
   const id = q.get('id');
   const nav = useNavigate();
   const d = useApi<InboxDetail>('/api/receiver/inbox/' + id);
+  useErrorPage(d.err);
   const h = d.data?.history;
   const [v, setV] = useState<Record<string, string>>({});
   // 농가가 비워 둔 칸 + 출생의 송아지 귀표만 채울 수 있다
@@ -410,10 +422,25 @@ function Nudge({ farmId }: { farmId: number }) {
   return <>{<Btn v="t" onClick={submit} disabled={busy}>다시 알리기</Btn>}<Err>{err._}</Err></>;
 }
 
+/** [연락하기]: 농가가 연락처를 함께 보낸 경우에만 (R-P01과 같은 모양, 메모는 기록마다라 접수함에서) */
+const Contact = ({ f, onClose }: { f: JurisdictionFarm; onClose: () => void }) => (
+  <Modal onClose={onClose}>
+    <H>농가에 연락하기</H>
+    <P>{f.name}</P>
+    <Row>
+      <H>{tel(f.phone!)}</H>
+      <CopyBtn text={f.phone!}>번호 복사</CopyBtn>
+    </Row>
+    <Btn href={'tel:' + f.phone!.replace(/\D/g, '')}>전화 걸기</Btn>
+    <Btn v="t" onClick={onClose}>닫기</Btn>
+  </Modal>
+);
+
 function RS03() {
   const j = useApi<Jurisdiction>('/api/receiver/jurisdiction/farms');
   const k = j.data?.kpis;
   const farms = j.data?.farms ?? [];
+  const [call, setCall] = useState<JurisdictionFarm>();
   return (
     <Page>
       <Pad>
@@ -431,10 +458,12 @@ function RS03() {
               md(f.last_record_date),
               f.next_task ? `${f.next_task.title} D-${f.next_task.d_day}` : '-',
               f.alert_state ? ALERT[f.alert_state] : '-',
-              f.alert_state === 'unanswered' ? <Nudge farmId={f.farm_id} /> : '',
+              // 미응답(48시간 넘게 안 읽음)만 다시 알릴 수 있다(RCV-07). 그 밖에 연락처를 받은 농가는 [연락하기]
+              f.alert_state === 'unanswered' ? <Nudge farmId={f.farm_id} /> : f.phone ? <Btn v="t" onClick={() => setCall(f)}>연락하기</Btn> : '',
             ])}
           />
         )}
+        {call && <Contact f={call} onClose={() => setCall(undefined)} />}
       </Pad>
     </Page>
   );
@@ -481,18 +510,24 @@ function RS05() {
   );
 }
 
-// shortcut: 점검 화면은 MVP 제외(점검 API 없음), 예시 문구 그대로
-const RE01 = () => (
-  <>
-    <Mast>점검 예정: 11월 25일 22:00~23:00</Mast>
-    <Gnb brand="촌수의사" items={MENU} />
-    <Center>
-      <H>지금은 점검 중이에요</H>
-      <P>오후 3시에 다시 열려요. 급한 신고 접수는 기존 전화·시스템을 이용해 주세요.</P>
-      <Btn to="/r-s02">다시 확인하기</Btn>
-    </Center>
-  </>
-);
+/** 오류 페이지 (R-E01). ?code=403 관할 밖, 그 밖(없는 주소·없는 기록)은 404. ?rid=오류 번호. 점검(MAINT-503)은 MVP 제외 */
+function RE01() {
+  const [q] = useSearchParams();
+  const denied = q.get('code') === '403';
+  const rid = q.get('rid');
+  return (
+    <>
+      <Mast>{NOTICE}</Mast>
+      <Gnb brand="촌수의사" />
+      <Center>
+        <H>{denied ? '이 기록을 볼 권한이 없어요' : '찾는 기록이 없어요'}</H>
+        <P>{denied ? '우리 기관 관할 농가의 기록만 볼 수 있어요.' : '삭제됐거나 없는 기록이에요. 접수 목록에서 다시 찾아 주세요.'}</P>
+        {rid && <Muted>오류 번호 {rid}</Muted>}
+        <Btn to="/r-s02">접수 목록으로</Btn>
+      </Center>
+    </>
+  );
+}
 
 const RE02 = () => <Inbox><Conflict id={useId() || null} /></Inbox>;
 
@@ -509,7 +544,7 @@ const screens: Screen[] = [
   ['R-S03', '관할 농가', RS03],
   ['R-S04', '공식 지침', RS04],
   ['R-S05', '통계', RS05],
-  ['R-E01', '[오류] 점검 · 오류 페이지', RE01],
+  ['R-E01', '[오류] 없는 기록 · 권한 없음 페이지', RE01],
   ['R-E02', '[오류] 처리 충돌 모달', RE02],
 ];
 
