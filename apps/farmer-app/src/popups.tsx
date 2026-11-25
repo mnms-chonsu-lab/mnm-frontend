@@ -3,6 +3,7 @@ import { api, ApiError, type Cow, type CowLookup, type HistoryReport, type MyFar
 import { Btn, Card, Chips, Err, H, Info, Input, Keypad, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
 import { CallBtn, CallNumber } from './check';
 import { cowName, digits, flow, hyphen, kday, kfull, spaced, tagFmt, tel, useCows, useId, useSend } from './shared';
+import { savedFarm, useQueue } from './outbox';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
 const Popup = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -289,24 +290,39 @@ export const FE02 = () => (
   </Popup>
 );
 
-/** 신고할 때 말할 내용. 인터넷이 없어도 보이도록 이 기기에서 마지막으로 본 오늘 기록 요약을 쓴다 */
+/**
+ * 신고할 때 말할 내용 (시행규칙 제13조 6개 항목 순서). 서버를 부르지 않고 이 기기에 저장된 농장 정보와
+ * 진행 중인 소 상태 기록(마지막으로 본 요약 또는 고르던 내용)으로 만든다. 없는 칸은 말할 것을 안내한다
+ */
 export function FE04() {
+  const [q] = useSearchParams();
+  const queue = useQueue();
+  const f = savedFarm();
   const s = flow.summary;
+  const c = flow.check;
+  const count = s?.head_count ?? c.headCount;
+  const rows: [string, string][] = [
+    ['농장(소유자)', f ? [`${f.owner_name} · ${f.farm_name}`, f.address].filter(Boolean).join(' · ') : '농장 이름과 주소를 말해 주세요'],
+    ['가축 종류·두수', `${s?.cow?.breed ?? '소'} ${count != null ? count + '두' : '두수 모름'}${s?.cow ? ` (${s.cow.tag_last4}번)` : ''}${f?.head_count != null ? ` / 전체 ${f.head_count}두` : ''}`],
+    ['발견 당시 상태', (s ? [...s.matched, s.observed_text] : [c.observed]).filter(Boolean).join(', ') || '본 모습을 말해 주세요'],
+    ['발견 날짜', s?.found_date ? kfull(s.found_date) : '처음 본 날을 말해 주세요'],
+    ['신고자', f ? `${f.owner_name}${f.phone ? ' · ' + tel(f.phone) : ''}` : '이름과 연락처를 말해 주세요'],
+    ['기타', [s?.barn, s?.vaccine && `최근 접종 ${s.vaccine.value ?? ''} ${kday(s.vaccine.date)}`].filter(Boolean).join(' · ') || '-'],
+  ];
+  // 전화 경로 완료 화면(F-S14P)에서 열면 대기 안내 없이 (명세 F-E04 상태)
+  const fromCall = q.get('from') === 'call';
+  const waiting = queue.some((x) => !x.failed);
   return (
     <Phone title="신고할 때 말할 내용" report={false}>
       <H>먼저 <span className="red">전화로</span><br />신고해 주세요</H>
       <CallBtn>전화 걸기 1588-9060</CallBtn>
-      {s ? (
-        <KV rows={[
-          ['소', s.cow ? `${s.cow.breed ?? ''} ${s.cow.tag_last4}번` : '귀표 번호 모름'],
-          ['본 것', [...s.matched, s.observed_text].filter(Boolean).join(', ') || '-'],
-          ['처음 본 때', kday(s.found_date)],
-          ['몇 마리', s.head_count != null ? s.head_count + '마리' : '-'],
-        ]} />
+      <P><b>통화할 때 이 순서로 말해 주세요</b></P>
+      <KV rows={rows} />
+      {!fromCall && (waiting ? (
+        <Info tone="w">지금은 기록을 보낼 수 없어요. 먼저 전화로 신고해 주세요. 기록은 인터넷이 연결되면 바로 보내 드릴게요. 보낸 결과는 홈에서 알려 드려요.</Info>
       ) : (
-        <Info>농장 주소, 소 번호, 본 모습, 처음 본 때를 말해 주세요.</Info>
-      )}
-      <Info tone="w">기록을 아직 보내지 못했다면, 인터넷이 연결된 뒤 다시 보내 주세요.</Info>
+        <Info tone="w">기록을 아직 보내지 못했다면, 인터넷이 연결된 뒤 다시 보내 주세요.</Info>
+      ))}
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Phone>
   );
