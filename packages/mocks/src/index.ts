@@ -1,7 +1,7 @@
 // 화면 검토용 배포(API 주소 없음)에서 GET 응답 대신 쓰는 가짜 데이터. 실제 농가 정보가 아닌 예시 값만 쓴다
 // 키는 쿼리를 뺀 API 경로. 쿼리(필터·검색)는 무시하고 같은 값을 준다
 export * from './farmer';
-import type { AdminUser, AdminUserRow, AuditLog, Guide, Health, Me, Org, Page, TodayMetrics } from '@mnm/api-client';
+import type { AdminDelivery, AdminUser, AdminUserRow, AiMetrics, AuditLog, EtlJob, EtlRun, Guide, Health, InferenceLog, Me, Org, Page, TodayMetrics } from '@mnm/api-client';
 
 const page = <R,>(items: R[]): Page<R> => ({ items, has_next: false, next_cursor: null });
 const AT = '2026-11-14T01:02:00Z';
@@ -37,6 +37,15 @@ const guide = (id: number, display_order: number, text: string, source_doc: stri
   display_order, example_image: null, part_code: null, photo_part: null, yes_required_parts: null, status, reviewer, version: 1,
 });
 
+const delivery = (d: Partial<AdminDelivery> & Pick<AdminDelivery, 'deliveries_id' | 'approved_at' | 'farmer_name'>): AdminDelivery => ({
+  received_at: d.approved_at, farm_id: 1, kind: 'symptom', route: 'coop', org_name: '홍성축협 방역팀', cc_org_name: null, status: 'delivered', receiver_status: 'new', ...d,
+});
+const run = (id: number, job: EtlRun['job'], status: EtlRun['status'], at: string, rows: number | null, error: string | null = null): EtlRun =>
+  ({ etl_job_run_id: id, job, status, started_at: at, finished_at: at, rows, error });
+const runs = [run(3, 'disinfection_facility', 'failed', '2026-11-13T21:00:00Z', null, 'API 응답 시간 초과 (3회 재시도)'), run(2, 'disinfection_facility', 'success', '2026-11-12T21:00:00Z', 214)];
+const ai = (feature: string | null, calls: number, failures: number, avg: number): AiMetrics['total'] =>
+  ({ feature, calls, failures, error_rate: calls ? failures / calls : null, avg_latency_ms: avg, no_evidence: 0, bad_input: 0 });
+
 export const adminMocks: Record<string, unknown> = {
   '/api/auth/me': { users_id: 9, role: 'admin', name: '이운영', login_id: 'ops.lee', must_change_pw: false, org: null, inbox_id: null } satisfies Me,
   '/api/admin/health': {
@@ -61,6 +70,30 @@ export const adminMocks: Record<string, unknown> = {
     guide(1, 1, '침을 흘리나요?', '구제역 SOP', 'published', '수의사'),
     guide(2, 2, '입이나 발굽 주변에 물집이 있나요?', '구제역 SOP', 'published', '수의사'),
     guide(3, 3, '사료를 안 먹거나 남기나요?', '구제역 SOP', 'review', null),
+  ]),
+  '/api/admin/deliveries': page<AdminDelivery>([
+    delivery({ deliveries_id: 4, approved_at: '2026-11-02T00:42:00Z', farmer_name: '김한우', route: 'call', org_name: '신고센터', cc_org_name: '홍성축협 방역팀' }),
+    delivery({ deliveries_id: 3, approved_at: '2026-11-01T23:15:00Z', farmer_name: '이영수', receiver_status: 'checking' }),
+    delivery({ deliveries_id: 2, approved_at: '2026-11-01T11:10:00Z', farmer_name: '김한우', kind: 'birth', org_name: '홍성축협 이력', receiver_status: 'done' }),
+    delivery({ deliveries_id: 1, approved_at: '2026-11-01T08:20:00Z', farmer_name: '최민호', route: 'web', status: 'failed', received_at: null, receiver_status: null }),
+  ]),
+  '/api/admin/etl/jobs': [
+    { job: 'outbreak', schedule: 'daily', last_run: run(9, 'outbreak', 'success', '2026-11-13T21:00:00Z', 1284), last_success: run(9, 'outbreak', 'success', '2026-11-13T21:00:00Z', 1284), busy: false },
+    { job: 'farm_scale', schedule: 'monthly', last_run: run(8, 'farm_scale', 'success', '2026-10-31T21:10:00Z', 3512), last_success: run(8, 'farm_scale', 'success', '2026-10-31T21:10:00Z', 3512), busy: false },
+    { job: 'disinfection_facility', schedule: 'daily', last_run: runs[0], last_success: runs[1], busy: false },
+  ] satisfies EtlJob[],
+  '/api/admin/etl/jobs/outbreak/runs': page([run(9, 'outbreak', 'success', '2026-11-13T21:00:00Z', 1284)]),
+  '/api/admin/etl/jobs/farm_scale/runs': page([run(8, 'farm_scale', 'success', '2026-10-31T21:10:00Z', 3512)]),
+  '/api/admin/etl/jobs/disinfection_facility/runs': page(runs),
+  '/api/admin/ai-metrics': {
+    since: '2026-11-13T01:00:00Z', total: ai(null, 412, 3, 1200),
+    features: [ai('stt', 120, 1, 2300), ai('route', 130, 1, 1800), ai('part_check', 80, 1, 800), ai('behavior', 30, 0, 3100), ai('guide', 40, 0, 900), ai('summary', 12, 0, 400)],
+    diff_ok_rate: 0.62, diff_feedback_count: 21,
+  } satisfies AiMetrics,
+  '/api/admin/inference-logs': page<InferenceLog>([
+    { inference_log_id: 3, at: '2026-11-14T01:01:22Z', feature: 'stt', model_version: 'whisper-1', input_kind: 'audio', result_summary: 'ok', latency_ms: 2300, error: null, http_status: 200 },
+    { inference_log_id: 2, at: '2026-11-14T01:01:25Z', feature: 'route', model_version: 'gpt-4o-mini', input_kind: 'text', result_summary: 'intent=diary', latency_ms: 1800, error: null, http_status: 200 },
+    { inference_log_id: 1, at: '2026-11-14T00:58:10Z', feature: 'part_check', model_version: 'siglip2-v1', input_kind: 'image', result_summary: 'hoof → hoof (0.91)', latency_ms: 800, error: null, http_status: 200 },
   ]),
   '/api/admin/audit-logs': page<AuditLog>([
     { audit_log_id: 3, at: '2026-11-14T00:52:00Z', users_id: 2, user_name: '박서연', user_role: 'receiver', action: 'update', target_type: 'delivery', target_id: 1 },
