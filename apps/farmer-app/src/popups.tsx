@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { api, ApiError, type Cow, type CowLookup, type HistoryReport, type MyFarm } from '@mnm/api-client';
 import { Btn, Card, Chips, Err, H, Info, Input, KV, Modal, P, Phone, Row, Sheet, Status, useNavigate, useSearchParams } from '@mnm/ui';
 import { CallBtn, CallNumber } from './check';
-import { cowName, flow, kday, kfull, tagFmt, useCows, useId, useSend } from './shared';
+import { cowName, flow, kday, kfull, tagFmt, tel, useCows, useId, useSend } from './shared';
 
 /** 바텀시트 팝업 공통 틀: 뒤 화면 제목만 보이고 시트가 올라온다 */
 const Popup = ({ title, banner, children }: { title: string; banner?: string; children: ReactNode }) => (
@@ -47,19 +47,38 @@ export function FP02() {
   );
 }
 
-export const FP03 = () => (
-  <Phone title="촌수의사" back={false} report={false}>
-    <Modal>
-      <H>개인정보 수집·이용 동의</H>
-      <Card>
-        <span><b>수집 항목</b> 이름, 휴대폰 번호, 농장식별번호, 농장 주소, 소 정보, 말로 남긴 기록, 사진</span>
-        <span><b>목적</b> 농장 일지, 신고 기한 알림, 신고서 초안</span>
-        <span><b>보관</b> 시범 운영 종료 또는 탈퇴 시 즉시 파기</span>
-      </Card>
-      <Btn to={-1}>확인</Btn>
-    </Modal>
-  </Phone>
-);
+/** 동의 항목별 [제목, 본문 줄 [이름, 내용]]. 순서는 로그인 화면 동의 순서 (COM-06) */
+const CONSENT_TEXT: [string, [string, string][]][] = [
+  ['개인정보 수집·이용 동의', [
+    ['수집 항목', '이름, 휴대폰 번호, 농장식별번호, 농장 주소, 사육 두수, 소 정보(귀표 번호, 품종·성별·출생일), 말로 남긴 기록, 사진'],
+    ['목적', '농장 일지, 신고 기한 알림, 신고서 초안'],
+    ['보관', '시범 운영 종료 또는 탈퇴 시 즉시 파기'],
+  ]],
+  ['기록 전달 동의', [
+    ['전달하는 때', '[네, 보낼게요]를 누른 경우에만'],
+    ['받는 곳', '고른 접수 기관(축협·방역기관·시군청)'],
+    ['전달 내용', '기록·사진. 휴대폰 번호는 "함께 보내기"를 고른 경우에만'],
+  ]],
+  ['처리 위탁 동의', [
+    ['음성·사진·문장 처리', 'OpenAI (이름·휴대폰 번호는 보내지 않음)'],
+    ['저장·서버 운영', '네이버 클라우드'],
+  ]],
+];
+
+/** 동의 내용 보기 (?i=동의 순서 0~2) */
+export function FP03() {
+  const [title, rows] = CONSENT_TEXT[Number(useSearchParams()[0].get('i'))] ?? CONSENT_TEXT[0];
+  return (
+    <Phone title="촌수의사" back={false} report={false} say={`${title} 내용이에요.`}>
+      <Modal>
+        <H>{title}</H>
+        <Card>{rows.map(([k, v]) => <span key={k}><b>{k}</b> {v}</span>)}</Card>
+        <P>동의하지 않을 수 있어요. 동의하지 않으면 서비스를 이용할 수 없어요.</P>
+        <Btn to={-1}>확인</Btn>
+      </Modal>
+    </Phone>
+  );
+}
 
 const digits = (s: string) => s.replace(/\D/g, '');
 
@@ -201,7 +220,9 @@ export function FP05() {
 export function FP06() {
   const nav = useNavigate();
   const [phone, setPhone] = useState('');
+  const [ask, setAsk] = useState(false); // 로그인 번호가 바뀌므로 확인 모달 후 저장
   const { submit, err, busy } = useSend(async () => {
+    setAsk(false);
     await api<MyFarm>('/api/farmer/me/farm', { method: 'PATCH', body: { phone } });
     nav(-1);
   });
@@ -211,7 +232,17 @@ export function FP06() {
       <Input label="새 휴대폰 번호 010-0000-0000" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} err={err.phone} />
       <Info tone="w">바꾼 번호로 다음에 로그인해요. 접수자에게 보이는 번호도 함께 바뀌어요.</Info>
       <Err>{err._}</Err>
-      <Btn onClick={submit} disabled={busy || digits(phone).length < 10}>바꾸기</Btn>
+      <Btn onClick={() => setAsk(true)} disabled={busy || digits(phone).length < 10}>바꾸기</Btn>
+      {ask && (
+        <Modal onClose={() => setAsk(false)}>
+          <H>로그인 번호가 바뀌어요</H>
+          <P>다음 로그인부터 <b>{tel(digits(phone))}</b>로 로그인해요. 접수자에게 보이는 번호도 함께 바뀌어요.</P>
+          <Row>
+            <Btn v="t" onClick={() => setAsk(false)}>취소</Btn>
+            <Btn onClick={submit} disabled={busy}>바꾸기</Btn>
+          </Row>
+        </Modal>
+      )}
     </Popup>
   );
 }

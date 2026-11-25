@@ -255,7 +255,7 @@ const useSummary = () => {
 function SummaryCard({ s }: { s: Summary }) {
   return (
     <Card>
-      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 && <Pill tone="d">공식 증상 {s.matched_count}개</Pill>}</span>
+      <span><b>{s.cow ? `${s.cow.tag_last4}번 · ${cowDesc(s.cow)}` : '귀표 번호 모름'}</b> {s.matched_count > 0 ? <Pill tone="d">공식 증상 {s.matched_count}개</Pill> : <Pill tone="g">해당 없음</Pill>}</span>
       {s.matched.map((m) => <span key={m}>· {m} <Official /></span>)}
       {s.observed_text && <span>· 본 것: {s.observed_text}</span>}
       <span>· 처음 본 날 {kday(s.found_date)}{s.head_count != null && ` · ${s.head_count}마리`}{s.barn && ` · ${s.barn}`}</span>
@@ -464,7 +464,7 @@ export function FS14W() {
       {x && x.photos.some((p) => p.url) && (
         <Row>{x.photos.filter((p) => p.url).map((p) => <Btn key={p.media_id} v="s" href={p.url!}>{PART[p.part] ?? p.part} 사진 열기</Btn>)}</Row>
       )}
-      <Info tone="w">급하면 전화가 더 빨라요 · 1588-9060</Info>
+      <Info tone="w"><a href="tel:15889060">급하면 전화가 더 빨라요 · 1588-9060</a></Info>
       <NowDo disease={q.get('d')} max={1} />
       <Btn v="t" to="/f-s01">처음으로</Btn>
     </Check>

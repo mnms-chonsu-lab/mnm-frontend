@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   api, apiReady, logout, qs, setMocks,
   type AdminUser, type AdminUserRow, type AuditLog, type Guide, type GuideContent, type GuideKind, type GuideStatus, type Health, type HealthStatus,
-  type Inbox, type Org, type OrgType, type Page as ApiPage, type Role, type TodayMetrics, type UserStatus,
+  type Inbox, type Me, type Org, type OrgType, type Page as ApiPage, type Role, type TodayMetrics, type UserStatus,
 } from '@mnm/api-client';
 import { adminMocks } from '@mnm/mocks';
 import {
@@ -17,13 +17,16 @@ const MENU: [string, string][] = [
   ['안내 문구', '/a-s05'], ['공공데이터', '/a-s06'], ['모델·AI 로그', '/a-s07'], ['감사 로그', '/a-s08'],
 ];
 
-/** 어드민 공통 틀: 상단 바 + 좌측 메뉴 */
-const Page = ({ children }: { children: ReactNode }) => (
-  <>
-    <Gnb brand="촌수의사 어드민" right={<>운영자 · <Link to="/r-s01" onClick={logout}>로그아웃</Link></>} />
-    <Side items={MENU}>{children}</Side>
-  </>
-);
+/** 어드민 공통 틀: 상단 바(운영자 이름, AUTH-03) + 좌측 메뉴 */
+function Page({ children }: { children: ReactNode }) {
+  const me = useApi<Me>('/api/auth/me').data;
+  return (
+    <>
+      <Gnb brand="촌수의사 어드민" right={<>운영자{me && ` · ${me.name}`} <Link to="/r-s01" onClick={logout}>로그아웃</Link></>} />
+      <Side items={MENU}>{children}</Side>
+    </>
+  );
+}
 
 /** 제목 + 오른쪽 주 버튼 */
 const Head = ({ title, action, to }: { title: string; action: string; to?: To }) => (
