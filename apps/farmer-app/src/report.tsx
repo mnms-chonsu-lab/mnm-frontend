@@ -146,7 +146,7 @@ export function FS05() {
   const c = useApi<CopyText>(`/api/farmer/history-reports/${id}/copy-text`);
   const { submit, err, busy } = useSend(async () => {
     const s = await api<SubmitResult>(`/api/farmer/history-reports/${id}/submit`, { method: 'POST', body: { mode: 'self' } });
-    nav(`/f-s07?mode=self${s.ear_tag_due ? '&due=' + s.ear_tag_due : ''}`, { replace: true });
+    nav(`/f-s07?mode=self&id=${id}${s.ear_tag_due ? '&due=' + s.ear_tag_due : ''}`, { replace: true });
   });
   const x = c.data;
   return (
@@ -177,7 +177,9 @@ export function FS06() {
   const [key] = useState(newKey); // 다시 눌러도 한 번만 부탁된다
   const { submit, err, busy } = useSend(async () => {
     const s = await api<SubmitResult>(`/api/farmer/history-reports/${id}/submit`, { method: 'POST', body: { mode: 'coop' }, headers: { 'Idempotency-Key': key } });
-    nav(`/f-s07?mode=coop&org=${encodeURIComponent(s.org_name ?? '')}`, { replace: true });
+    // 출생 신고인데 송아지 귀표가 없으면 축협이 신고를 마친 날부터 귀표 30일 할 일이 생긴다 (mnm-dev RCV-10)
+    const birth = r.data?.type === '출생' && !r.data.fields.calf_tag;
+    nav(`/f-s07?mode=coop&id=${id}&org=${encodeURIComponent(s.org_name ?? '')}${birth ? '&birth=1' : ''}`, { replace: true });
   });
   const x = r.data;
   const org = x?.farm.org_name ?? '담당 축협';
@@ -223,6 +225,13 @@ export function FS07() {
           <span>귀표를 <b>{kday(due)}</b>까지 달아 주세요. 홈 할 일에 넣어 두었어요.</span>
         </Card>
       )}
+      {coop && q.get('birth') && (
+        <Card>
+          <b>다음 할 일</b>
+          <span>축협이 출생 신고를 마친 날부터 <b>30일 안에</b> 송아지 귀표를 달아 주세요. 신고를 마치면 기한을 홈 할 일에 넣어 드려요.</span>
+        </Card>
+      )}
+      {q.get('id') && <Btn v="s" to={`/f-s04?id=${q.get('id')}`}>축협 직원에게 화면으로 보여주기</Btn>}
       <Btn v="s" to="/f-s15">농장 일지 보기</Btn>
       <Btn to="/f-s01">처음 화면으로</Btn>
     </Phone>
