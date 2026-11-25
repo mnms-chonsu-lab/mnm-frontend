@@ -233,20 +233,40 @@ function speak() {
   u.lang = 'ko-KR';
   speechSynthesis.speak(u);
 }
+/* ---------- 토스트: 화면 아래 잠깐 뜨는 안내 (3초) ---------- */
+let toastMsg = '';
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+const toastSubs = new Set<() => void>();
+const setToast = (m: string) => {
+  toastMsg = m;
+  toastSubs.forEach((f) => f());
+};
+export function toast(msg: string) {
+  clearTimeout(toastTimer);
+  setToast(msg);
+  toastTimer = setTimeout(() => setToast(''), 3000);
+}
+function Toast() {
+  const m = useSyncExternalStore((f) => (toastSubs.add(f), () => void toastSubs.delete(f)), () => toastMsg);
+  return m ? <div className="toast" role="status">{m}</div> : null;
+}
+
+// 소리 안내가 없는 휴대폰도 버튼은 그대로 두고 누르면 알린다 (TTS-NA)
 const toggleSpeak = () => {
+  if (!canSpeak) return toast('이 휴대폰에서는 소리 안내를 쓸 수 없어요.');
   setPrefs({ speak: !prefs.speak });
   if (prefs.speak) speak();
   else if (canSpeak) speechSynthesis.cancel();
 };
 
-/** 헤더 [가] 버튼. 누를 때마다 다음 글자 크기 */
+/** 헤더 [글씨 크기] 버튼. 누를 때마다 다음 글자 크기 */
 export function FontBtn() {
   const p = usePrefs();
   const steps = fontSteps();
   const i = fontStep(p.font);
   return (
-    <button type="button" className="fz" aria-label={`글자 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
-      가 {steps[i][0]}
+    <button type="button" className="fz" aria-label={`글씨 크기: ${steps[i][0]}`} onClick={() => setPrefs({ font: steps[(i + 1) % steps.length][1] })}>
+      글씨 크기 <span style={{ whiteSpace: 'nowrap' }}>{steps[i][0]}</span>
     </button>
   );
 }
@@ -264,13 +284,26 @@ export function PrefsCard() {
   const steps = fontSteps();
   return (
     <div className="card">
-      <b>글자 크기</b>
+      <b>글씨 크기</b>
       <Chips items={steps.map(([n]) => n)} on={fontStep(p.font)} onPick={(i) => setPrefs({ font: steps[i][1] })} />
       <Switch label="선명한 화면" on={!!p.hc} onClick={() => setPrefs({ hc: !p.hc })} />
-      {canSpeak && <Switch label="소리 안내" on={!!p.speak} onClick={toggleSpeak} />}
+      <Switch label="소리 안내" on={!!p.speak && canSpeak} onClick={toggleSpeak} />
     </div>
   );
 }
+
+/* ---------- 인터넷 연결 (NET-OFF) ---------- */
+const onNet = (f: () => void) => {
+  addEventListener('online', f);
+  addEventListener('offline', f);
+  return () => {
+    removeEventListener('online', f);
+    removeEventListener('offline', f);
+  };
+};
+/** 지금 인터넷이 연결돼 있는지. 끊기거나 다시 연결되면 다시 그린다 */
+export const useOnline = () => useSyncExternalStore(onNet, () => navigator.onLine);
+const OFFLINE = '⚠ 인터넷이 연결되지 않았어요. 연결되면 이어서 보낼게요.';
 
 /* ---------- 농가 앱 틀 ---------- */
 // 하단 탭 [알림]의 안 읽은 수 (홈 요약 FARM-05에서 채움)
@@ -286,12 +319,14 @@ const TABS: [string, string][] = [['홈', '/f-s01'], ['기록', '/f-s15'], ['알
 
 /**
  * 농가 앱 화면 틀. 헤더·하단 탭·[바로 신고] 고정 버튼을 그린다.
- * tab: 하단 탭에서 켜질 항목(없으면 탭 숨김), report: [바로 신고] 고정 버튼 표시
+ * tab: 하단 탭에서 켜질 항목(없으면 탭 숨김), report: [바로 신고] 고정 버튼 표시.
+ * 인터넷이 끊긴 동안은 모든 화면 위에 안내 띠를 고정하고, 다시 연결되면 없앤다 (NET-OFF)
  */
 export function Phone({ title, back = true, tab, report = true, banner, say, children }: Kids & { title: string; back?: boolean; tab?: string; report?: boolean; banner?: string; say?: string }) {
   const go = useGo();
   const p = usePrefs();
   const n = useUnread();
+  const online = useOnline();
   useEffect(() => {
     // shortcut: 소리 안내 문구(say)가 없으면 화면 제목을 읽는다, 화면별 문구 연결 시 say를 채운다
     screenText = () => say ?? document.querySelector('.h')?.textContent ?? title;
@@ -300,14 +335,16 @@ export function Phone({ title, back = true, tab, report = true, banner, say, chi
   }, [say, title]);
   return (
     <div className="phone">
+      {!online && <div className="mast w" role="status">{OFFLINE}</div>}
       {banner && <div className="mast w">{banner}</div>}
       <header className="hdr">
         {back && <button type="button" className="bk" aria-label="뒤로" onClick={go(-1)}>‹</button>}
         <span className="tt">{title}</span>
         <FontBtn />
-        {canSpeak && <button type="button" className={p.speak ? 'on' : ''} aria-pressed={!!p.speak} onClick={toggleSpeak}>듣기</button>}
+        <button type="button" className={p.speak && canSpeak ? 'on' : ''} aria-pressed={!!p.speak && canSpeak} onClick={toggleSpeak}>듣기</button>
       </header>
       <main className="body">{children}</main>
+      <Toast />
       {(report || tab) && (
         <footer className="foot">
           {report && <div className="fix"><Btn v="d" to="/f-p01">바로 신고 1588-9060</Btn></div>}

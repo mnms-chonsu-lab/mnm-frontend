@@ -6,7 +6,7 @@ import { Opt, Status, fontSteps, setPrefs, setPrefsSaver, useApi, useAuthForm, u
 /** 말·글 기록 정리 초안 (F-S02 → F-S03 → F-S03E) · 소 상태 확인 (F-S08 → F-S11) */
 export const flow: {
   draft?: RecordDraft;
-  check: { cowId?: number | null; observed?: string; headCount?: number | null; answers: Partial<Record<AnswerKey, Answer>>; saved?: SymptomSaved };
+  check: { cowId?: number | null; observed?: string; headCount?: number | null; foundDate?: string; barn?: string; answers: Partial<Record<AnswerKey, Answer>>; saved?: SymptomSaved };
   summary?: Summary;
 } = { check: { answers: {} } };
 
