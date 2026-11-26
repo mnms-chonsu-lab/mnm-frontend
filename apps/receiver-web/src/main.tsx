@@ -28,7 +28,7 @@ const FIELD: Record<string, string> = {
   mother_tag4: '어미 소 (귀표 끝 4자리)', birth_date: '태어난 날', sex: '성별', breed: '품종', calf_tag: '송아지 귀표',
   cow_tag: '소 (귀표)', death_date: '폐사한 날', move_date: '옮긴 날', counterpart_farm_no: '상대 농장식별번호', counterpart_name: '상대 이름',
 };
-const PART: Record<string, string> = { mouth: '입', udder: '젖', hoof: '발굽', flank: '몸 옆면' };
+const PART: Record<string, string> = { mouth: '입', udder: '젖', hoof: '발굽', flank: '몸 옆면', none: '알아볼 수 없음' }; // none: AI가 소 부위로 보지 않음 (mnm-ai#23)
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** ISO 시각 → "11.02 09:42" (이 기기 시간대) */
