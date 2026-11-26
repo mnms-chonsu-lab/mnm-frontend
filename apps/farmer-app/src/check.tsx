@@ -270,8 +270,8 @@ async function sendMedia<T>(file: File, srId: number, kind: 'photo' | 'video', p
 }
 
 /** 카메라로 찍는 버튼 (capture라 앨범 선택 없음) */
-const Pick = ({ accept, label, busy, onFile }: { accept: string; label: string; busy: boolean; onFile: (f: File) => void }) => (
-  <label className="btn p" aria-disabled={busy} style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
+const Pick = ({ accept, label, busy, onFile, v = 'p' }: { accept: string; label: string; busy: boolean; onFile: (f: File) => void; v?: 'p' | 't' }) => (
+  <label className={'btn ' + v} aria-disabled={busy} style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
     {busy ? '올리는 중…' : label}
     <input type="file" accept={accept} capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f); }} />
   </label>
@@ -299,18 +299,19 @@ export function FS10() {
     if (file) void submit();
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!saved || !p) return <Check title="사진 찍기"><Restart /></Check>;
-  const bad = res?.status === 'done' && (res.match === false || res.dark || res.blurry);
+  // 부위 판정(match)은 틀릴 때가 있어 농가에게 보이지 않는다. 접수자 웹에서만 본다 (#72)
+  const bad = res?.status === 'done' && (res.dark || res.blurry);
   return (
     <Check title="사진 찍기">
       <Steps n={parts.length} on={i} />
       <H>{p.part_name} 사진을<br /><em>찍어 주세요</em> ({i + 1}/{parts.length})</H>
       <Pic oval src={preview}>{p.guide}</Pic>
-      {res?.status === 'done' && res.match === false && <Info tone="w"><b>{p.part_name}이(가) 잘 안 보여요.</b> {p.guide} 다시 찍어 주세요.</Info>}
-      {res?.status === 'done' && res.match !== false && res.dark && <Info tone="w"><b>사진이 어두워요.</b> 밝은 곳에서 한 번 더 찍어 주세요.</Info>}
-      {res?.status === 'done' && res.match !== false && !res.dark && res.blurry && <Info tone="w"><b>사진이 흔들렸어요.</b> 한 번 더 찍어 주세요.</Info>}
-      {res && !bad && <Info tone="ok"><b>사진을 저장했어요.</b>{res.status === 'pending' && ' 부위 확인은 조금 뒤에 끝나요.'}{res.status === 'failed' && ' 부위 확인은 안 됐어요.'}</Info>}
+      {res?.status === 'done' && res.dark && <Info tone="w"><b>사진이 어두워요.</b> 밝은 곳에서 한 번 더 찍어 주세요.</Info>}
+      {res?.status === 'done' && !res.dark && res.blurry && <Info tone="w"><b>사진이 흔들렸어요.</b> 한 번 더 찍어 주세요.</Info>}
+      {res && !bad && <Info tone="ok"><b>사진을 저장했어요.</b></Info>}
       <Err>{err._}</Err>
       {res && !bad ? <Btn onClick={next}>다음</Btn> : <Pick accept={PHOTO_TYPES.join(',')} label={res || err._ ? '다시 찍기' : '사진 찍기'} busy={busy} onFile={setFile} />}
+      {res && !bad && <Pick v="t" accept={PHOTO_TYPES.join(',')} label="다시 찍기" busy={busy} onFile={setFile} />}
       {bad && <Btn v="t" onClick={next}>이대로 다음</Btn>}
       {!res && <Btn v="t" onClick={next}>건너뛰기</Btn>}
     </Check>
@@ -334,12 +335,8 @@ export function FS10V() {
     <Check title="영상 찍기">
       <H>소 모습을<br /><em>10초만</em> 찍어 주세요</H>
       <Pic>소 몸 전체가 화면에 들어오게</Pic>
-      {res && (
-        <Info tone="ok">
-          <b>영상을 저장했어요.</b>{' '}
-          {res.ratio ? <>영상에서 본 모습: 눕기 {res.ratio.lie}% · 서기 {res.ratio.stand}% · 먹기 {res.ratio.eat}% <Muted>(참고)</Muted></> : res.status === 'pending' ? '모습 분류는 조금 뒤에 끝나요.' : '모습 분류는 안 됐어요.'}
-        </Info>
-      )}
+      {/* 모습 비율은 휴대폰 영상에서 정확도를 확인 못 해 농가에게 보이지 않는다 (#72) */}
+      {res && <Info tone="ok"><b>영상을 저장했어요.</b></Info>}
       <Err>{err._}</Err>
       {res ? <Btn to={done}>다음</Btn> : <Pick accept={VIDEO_TYPES.join(',')} label={err._ ? '다시 찍기' : '영상 찍기'} busy={busy} onFile={setFile} />}
       {!res && <Btn v="t" to={done}>건너뛰기</Btn>}
@@ -364,7 +361,6 @@ function SummaryCard({ s }: { s: Summary }) {
       <span>· 처음 본 날 {kday(s.found_date)}{s.head_count != null && ` · ${s.head_count}마리`}{s.barn && ` · ${s.barn}`}</span>
       {s.related_diary.map((d) => <span key={d.entry_id}>· {kday(d.date)} {d.category} {d.value} (일지)</span>)}
       {s.vaccine && <span>· 최근 접종: {s.vaccine.value} {kday(s.vaccine.date)}</span>}
-      {s.video?.ratio && <span>· 영상에서 본 모습: 눕기 {s.video.ratio.lie}% · 서기 {s.video.ratio.stand}% · 먹기 {s.video.ratio.eat}% <Muted>(참고)</Muted></span>}
       {s.photos.length > 0 && <Row>{s.photos.map((p) => <Pic key={p.media_id} src={p.url}>{PART[p.part] ?? p.part}</Pic>)}</Row>}
     </Card>
   );
