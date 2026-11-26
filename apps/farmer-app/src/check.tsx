@@ -269,7 +269,7 @@ async function sendMedia<T>(file: File, srId: number, kind: 'photo' | 'video', p
   return api<T>(`/api/farmer/media/${u.media_id}/${kind === 'photo' ? 'part-check' : 'behavior'}`, { method: 'POST' });
 }
 
-/** 카메라로 찍거나 앨범에서 고르는 버튼 */
+/** 카메라로 찍는 버튼 (capture라 앨범 선택 없음) */
 const Pick = ({ accept, label, busy, onFile }: { accept: string; label: string; busy: boolean; onFile: (f: File) => void }) => (
   <label className="btn p" aria-disabled={busy} style={busy ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
     {busy ? '올리는 중…' : label}
@@ -310,7 +310,7 @@ export function FS10() {
       {res?.status === 'done' && res.match !== false && !res.dark && res.blurry && <Info tone="w"><b>사진이 흔들렸어요.</b> 한 번 더 찍어 주세요.</Info>}
       {res && !bad && <Info tone="ok"><b>사진을 저장했어요.</b>{res.status === 'pending' && ' 부위 확인은 조금 뒤에 끝나요.'}{res.status === 'failed' && ' 부위 확인은 안 됐어요.'}</Info>}
       <Err>{err._}</Err>
-      {res && !bad ? <Btn onClick={next}>다음</Btn> : <Pick accept={PHOTO_TYPES.join(',')} label={res || err._ ? '다시 찍기' : '사진 찍기 · 고르기'} busy={busy} onFile={setFile} />}
+      {res && !bad ? <Btn onClick={next}>다음</Btn> : <Pick accept={PHOTO_TYPES.join(',')} label={res || err._ ? '다시 찍기' : '사진 찍기'} busy={busy} onFile={setFile} />}
       {bad && <Btn v="t" onClick={next}>이대로 다음</Btn>}
       {!res && <Btn v="t" onClick={next}>건너뛰기</Btn>}
     </Check>
@@ -341,7 +341,7 @@ export function FS10V() {
         </Info>
       )}
       <Err>{err._}</Err>
-      {res ? <Btn to={done}>다음</Btn> : <Pick accept={VIDEO_TYPES.join(',')} label={err._ ? '다시 올리기' : '영상 찍기 · 고르기'} busy={busy} onFile={setFile} />}
+      {res ? <Btn to={done}>다음</Btn> : <Pick accept={VIDEO_TYPES.join(',')} label={err._ ? '다시 찍기' : '영상 찍기'} busy={busy} onFile={setFile} />}
       {!res && <Btn v="t" to={done}>건너뛰기</Btn>}
     </Check>
   );
