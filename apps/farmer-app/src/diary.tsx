@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type Category, type DiaryDay, type DiaryDetail, type DiaryEntry, type DiarySaved, type DraftItem, type HistoryReport, type RecordDraft } from '@mnm/api-client';
 import { Btn, Card, Chips, Dots, Err, H, Info, Input, KV, Muted, P, Phone, Pill, Row, Select, Status, useApi, useNavigate, usePage } from '@mnm/ui';
-import { RECEIVER, cowName, flow, isServerErr, kat, kday, kdow, dday, useCows, useId, useSend } from './shared';
+import { AUDIO, MAX_SEC, RECEIVER, audioForm, cowName, flow, isServerErr, kat, kday, kdow, dday, useCows, useId, useRecorder, useSend } from './shared';
 
 /** 정리 초안을 받으면: 음성 인식 실패 → 글로 쓰기, 정리 실패 → 직접 고르기, 아니면 확인 화면 */
 const afterDraft = (d: RecordDraft) => {
@@ -9,44 +9,14 @@ const afterDraft = (d: RecordDraft) => {
   return d.fallback === 'text_input' ? '/f-s02t' : d.fallback === 'select_input' ? '/f-s03e' : '/f-s03';
 };
 
-// 녹음 형식: 브라우저가 지원하는 것 (크롬·안드로이드 webm, 사파리·iOS mp4)
-const AUDIO = ['audio/webm', 'audio/mp4'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t));
-const MAX_SEC = 60; // FARM-03 60초 이하
-
 export function FS02() {
   const nav = useNavigate();
-  const rec = useRef<MediaRecorder>();
-  const [on, setOn] = useState(false);
   const [blob, setBlob] = useState<Blob>();
-  const [micErr, setMicErr] = useState<string>();
+  const { on, start: record, stop, micErr } = useRecorder(setBlob);
+  const start = () => (setBlob(undefined), void record());
   const { submit, err, busy } = useSend(async () => {
-    const f = new FormData();
-    f.append('audio', blob!, 'voice.' + (AUDIO === 'audio/mp4' ? 'm4a' : 'webm'));
-    nav(afterDraft(await api<RecordDraft>('/api/farmer/records/voice', { method: 'POST', body: f })));
+    nav(afterDraft(await api<RecordDraft>('/api/farmer/records/voice', { method: 'POST', body: audioForm(blob!) })));
   });
-  useEffect(() => () => rec.current?.stream.getTracks().forEach((t) => t.stop()), []);
-  const start = async () => {
-    setMicErr(undefined);
-    setBlob(undefined);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const r = new MediaRecorder(stream, { mimeType: AUDIO });
-      const parts: Blob[] = [];
-      r.ondataavailable = (e) => parts.push(e.data);
-      r.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setBlob(new Blob(parts, { type: AUDIO }));
-        setOn(false);
-      };
-      r.start();
-      rec.current = r;
-      setOn(true);
-      setTimeout(() => r.state === 'recording' && r.stop(), MAX_SEC * 1000);
-    } catch {
-      setMicErr('마이크를 쓸 수 없어요. 글로 써 주세요.');
-    }
-  };
-  const stop = () => rec.current?.state === 'recording' && rec.current.stop();
   return (
     <Phone title="말로 기록하기" tab="홈" say="오늘 한 일을 말씀해 주세요. 말을 마치면 다 말했어요 버튼을 눌러 주세요.">
       <Dots n={3} on={0} />

@@ -1,6 +1,56 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, apiReady, getSession, type AnswerKey, type Answer, type Cow, type Page, type RecordDraft, type Settings, type Summary, type SymptomSaved } from '@mnm/api-client';
 import { Opt, Status, fontSteps, openSheet, setPrefs, setPrefsSaver, useApi, useAuthForm, useSearchParams } from '@mnm/ui';
+
+/* ---------- 마이크 녹음 (F-S02 · F-S08 · F-S08S) ---------- */
+// 녹음 형식: 브라우저가 지원하는 것 (크롬·안드로이드 webm, 사파리·iOS mp4)
+export const AUDIO = ['audio/webm', 'audio/mp4'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t));
+export const MAX_SEC = 60; // FARM-03 60초 이하
+
+/** 녹음 파일을 multipart `audio` 칸으로 */
+export const audioForm = (b: Blob) => {
+  const f = new FormData();
+  f.append('audio', b, 'voice.' + (AUDIO === 'audio/mp4' ? 'm4a' : 'webm'));
+  return f;
+};
+
+/** [마이크] 누르면 녹음, 다시 누르면(또는 최대 시간) 멈추고 onDone(녹음). 마이크를 못 쓰면 micErr */
+export function useRecorder(onDone: (b: Blob) => void, maxSec = MAX_SEC) {
+  const rec = useRef<MediaRecorder>();
+  const [on, setOn] = useState(false);
+  const [micErr, setMicErr] = useState<string>();
+  useEffect(() => () => rec.current?.stream.getTracks().forEach((t) => t.stop()), []);
+  const start = async () => {
+    setMicErr(undefined);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream, { mimeType: AUDIO });
+      const parts: Blob[] = [];
+      r.ondataavailable = (e) => parts.push(e.data);
+      r.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setOn(false);
+        onDone(new Blob(parts, { type: AUDIO }));
+      };
+      r.start();
+      rec.current = r;
+      setOn(true);
+      setTimeout(() => r.state === 'recording' && r.stop(), maxSec * 1000);
+    } catch {
+      setMicErr('마이크를 쓸 수 없어요. 글로 써 주세요.');
+    }
+  };
+  const stop = () => rec.current?.state === 'recording' && rec.current.stop();
+  return { on, start, stop, micErr, setMicErr };
+}
+
+const KDIGIT: Record<string, string> = { 공: '0', 영: '0', 일: '1', 이: '2', 삼: '3', 사: '4', 오: '5', 육: '6', 륙: '6', 칠: '7', 팔: '8', 구: '9' };
+/** 들은 말에서 귀표 끝 4자리: "공팔칠일번" · "0871번이요" → "0871". 4자리 넘게 말하면 끝 4자리. 못 찾으면 null
+ *  shortcut: 한 자리씩 읽은 말만 셈("천이백삼십사"는 못 읽음), 이렇게 말하는 사람이 많으면 자릿수 읽기 추가 */
+export const tag4From = (said: string) => {
+  const run = [...said.replace(/\s/g, '')].map((ch) => KDIGIT[ch] ?? ch).join('').match(/\d{4,}/)?.[0];
+  return run ? run.slice(-4) : null;
+};
 
 /* ---------- 화면 사이에 이어지는 흐름 (새로고침하면 처음부터) ---------- */
 /** 말·글 기록 정리 초안 (F-S02 → F-S03 → F-S03E) · 소 상태 확인 (F-S08 → F-S11) */
