@@ -299,15 +299,16 @@ export function FS10() {
     if (file) void submit();
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!saved || !p) return <Check title="사진 찍기"><Restart /></Check>;
-  // 부위 판정(match)은 틀릴 때가 있어 농가에게 보이지 않는다. 접수자 웹에서만 본다 (#72)
-  const bad = res?.status === 'done' && (res.dark || res.blurry);
+  // 부위 판정(match)은 틀릴 때가 있어 농가에게 보이지 않는다(#72). 소가 아닌 사진(not_cow)만 알린다 (#79)
+  const bad = res?.status === 'done' && (res.not_cow || res.dark || res.blurry);
   return (
     <Check title="사진 찍기">
       <Steps n={parts.length} on={i} />
       <H>{p.part_name} 사진을<br /><em>찍어 주세요</em> ({i + 1}/{parts.length})</H>
       <Pic oval src={preview}>{p.guide}</Pic>
-      {res?.status === 'done' && res.dark && <Info tone="w"><b>사진이 어두워요.</b> 밝은 곳에서 한 번 더 찍어 주세요.</Info>}
-      {res?.status === 'done' && !res.dark && res.blurry && <Info tone="w"><b>사진이 흔들렸어요.</b> 한 번 더 찍어 주세요.</Info>}
+      {res?.status === 'done' && res.not_cow && <Info tone="w"><b>소가 잘 안 보여요.</b> 다시 찍어 주세요.</Info>}
+      {res?.status === 'done' && !res.not_cow && res.dark && <Info tone="w"><b>사진이 어두워요.</b> 밝은 곳에서 한 번 더 찍어 주세요.</Info>}
+      {res?.status === 'done' && !res.not_cow && !res.dark && res.blurry && <Info tone="w"><b>사진이 흔들렸어요.</b> 한 번 더 찍어 주세요.</Info>}
       {res && !bad && <Info tone="ok"><b>사진을 저장했어요.</b></Info>}
       <Err>{err._}</Err>
       {res && !bad ? <Btn onClick={next}>다음</Btn> : <Pick accept={PHOTO_TYPES.join(',')} label={res || err._ ? '다시 찍기' : '사진 찍기'} busy={busy} onFile={setFile} />}
