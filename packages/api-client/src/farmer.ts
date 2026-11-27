@@ -104,7 +104,7 @@ export type Summary = {
 /** FARM-12 업로드 양식: upload_url에 fields + file을 multipart POST (저장소 204 = 성공) */
 export type UploadForm = { media_id: number; upload_url: string; fields: Record<string, string>; expires_at: string };
 export type AiStatus = 'done' | 'pending' | 'failed';
-export type PartCheck = { media_id: number; status: AiStatus; match: boolean | null; dark: boolean | null; blurry: boolean | null };
+export type PartCheck = { media_id: number; status: AiStatus; match: boolean | null; not_cow: boolean | null; dark: boolean | null; blurry: boolean | null };
 export type Behavior = { media_id: number; status: AiStatus; ratio: Ratio | null };
 /** FARM-16 지금 할 일 (게시된 조치 문구 원문) */
 export type Actions = { disease: Disease; guide_name: string; actions: { rule_id: number; text: string; source_doc: string; clause: string | null; revised_at: string | null }[] };
