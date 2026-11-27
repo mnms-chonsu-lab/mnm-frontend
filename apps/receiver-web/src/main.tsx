@@ -28,7 +28,7 @@ const FIELD: Record<string, string> = {
   mother_tag4: '어미 소 (귀표 끝 4자리)', birth_date: '태어난 날', sex: '성별', breed: '품종', calf_tag: '송아지 귀표',
   cow_tag: '소 (귀표)', death_date: '폐사한 날', move_date: '옮긴 날', counterpart_farm_no: '상대 농장식별번호', counterpart_name: '상대 이름',
 };
-const PART: Record<string, string> = { mouth: '입', udder: '젖', hoof: '발굽', flank: '몸 옆면' };
+const PART: Record<string, string> = { mouth: '입', udder: '젖', hoof: '발굽', flank: '몸 옆면', none: '알아볼 수 없음' }; // none: AI가 소 부위로 보지 않음 (mnm-ai#23)
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** ISO 시각 → "11.02 09:42" (이 기기 시간대) */
@@ -184,6 +184,7 @@ function Detail({ id }: { id: string }) {
               ))}
               {s.video?.url && <a href={s.video.url} target="_blank" rel="noreferrer">▶ 영상 보기</a>}
             </Row>
+            {s.photos.some((p) => p.match != null) && <Muted>부위 일치·다름은 AI 자동 확인이에요 (참고용).</Muted>}
             {s.video?.ratio && <span>영상에서 본 모습: 눕기 {s.video.ratio.lie}% · 서기 {s.video.ratio.stand}% · 먹기 {s.video.ratio.eat}% <Muted>(참고)</Muted></span>}
           </Card>
         )}
@@ -363,7 +364,7 @@ function RP03() {
             {p.url ? <img src={p.url} alt={`${PART[p.requested_part] ?? ''} 원본 사진`} style={{ width: '100%', borderRadius: 12 }} /> : <Muted>아직 올라오지 않은 사진이에요.</Muted>}
             <Info>
               요청 부위: <b>{PART[p.requested_part] ?? p.requested_part}</b>
-              {p.match == null ? ' · 부위 확인 안 됨' : <> · 판정 부위: <b>{PART[p.predicted_part ?? ''] ?? p.predicted_part ?? '-'}</b> ({p.match ? '일치' : '다름'})</>}
+              {p.match == null ? ' · 부위 확인 안 됨' : <> · 판정 부위: <b>{PART[p.predicted_part ?? ''] ?? p.predicted_part ?? '-'}</b> ({p.match ? '일치' : '다름'}) <Muted>· AI 자동 확인, 참고용</Muted></>}
             </Info>
           </>
         )}
