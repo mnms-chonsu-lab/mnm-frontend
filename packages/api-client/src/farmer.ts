@@ -25,6 +25,8 @@ export type Category = '사육현황' | '접종' | '소독' | '관찰' | '출입
 export type ReportType = '출생' | '폐사' | '양도' | '양수' | '이동';
 export type DraftItem = { category: Category; value: string | null; cow_tag4: string | null; cow_id: number | null; vaccine_type: string | null; head_count: number | null };
 /** FARM-03·25 저장하지 않은 정리 초안. fallback: text_input(글로 쓰기) · select_input(선택형 입력) */
+/** 말 → 글 (F-S08 · F-S08S). 못 알아들으면 text=null, fallback=text_input */
+export type SpeechText = { text: string | null; fallback: 'text_input' | null };
 export type RecordDraft = {
   raw_text: string | null;
   intent: 'diary' | 'history_report' | 'symptom' | null;

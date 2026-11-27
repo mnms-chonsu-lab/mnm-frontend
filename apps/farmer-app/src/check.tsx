@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   api, ApiError, newKey, uploadFile,
-  type Actions, type Answer, type Behavior, type Delivered, type Facility, type FarmerMe, type Page, type PartCheck, type Question, type Summary, type SymptomSaved, type UploadForm,
+  type Actions, type Answer, type Behavior, type Delivered, type Facility, type FarmerMe, type Page, type PartCheck, type Question, type SpeechText, type Summary, type SymptomSaved, type UploadForm,
 } from '@mnm/api-client';
 import { Btn, Card, CopyBtn, Done, Err, H, Info, Input, KV, Modal, Muted, P, openSheet, Phone, Pic, Pill, RouteCard, Row, Status, Steps, useApi, useNavigate, useSearchParams } from '@mnm/ui';
-import { CowList, PART, cowDesc, cowName, flow, isServerErr, kday, useCows, useId, useSend } from './shared';
+import { AUDIO, CowList, PART, audioForm, cowDesc, cowName, flow, isServerErr, kday, tag4From, useCows, useId, useRecorder, useSend } from './shared';
 import { enqueue } from './outbox';
 
 /** 소 상태 확인 흐름 공통 틀 */
@@ -76,6 +76,14 @@ function NoGuide() {
   );
 }
 
+/** 말 → 글 (음성만 글로, 저장 안 함). 못 알아들으면 null */
+const hear = async (b: Blob) => (await api<SpeechText>('/api/farmer/stt', { method: 'POST', body: audioForm(b) })).text;
+
+/** 말하기 버튼 아래 한 줄: 듣는 중 · 알아듣는 중 · 안내 */
+const MicState = ({ on, busy, idle }: { on: boolean; busy: boolean; idle: string }) => (
+  <P center>{on ? <Pill>● 듣고 있어요</Pill> : busy ? <Pill tone="g">알아듣는 중…</Pill> : <Muted>{idle}</Muted>}</P>
+);
+
 /* ---------- F-S08 소 고르기 ---------- */
 export function FS08() {
   const nav = useNavigate();
@@ -85,18 +93,29 @@ export function FS08() {
   useEffect(() => {
     flow.check = { answers: {} };
   }, []);
-  const find = () => {
-    const m = cows.filter((c) => c.tag_last4 === tag.trim());
+  const find = (t = tag.trim()) => {
+    const m = cows.filter((c) => c.tag_last4 === t);
     if (m.length === 1) nav(`/f-s08s?cow=${m[0].cow_id}`);
     else setFound(m);
   };
+  // 끝 4자리 말하기 → "1234번 맞아요?" 시트. 못 알아들으면 숫자 입력칸으로
+  const { submit: listen, err, busy } = useSend(async () => {
+    const t = tag4From((await hear(said.current!)) ?? '');
+    if (!t) return void mic.setMicErr('번호를 못 알아들었어요. 다시 말하거나 숫자로 써 주세요.');
+    openSheet({ title: `${t}번 맞아요?`, actions: [['맞아요', () => (setTag(t), find(t)), 'p'], ['다시 말하기', () => void mic.start(), 's'], ['숫자로 쓰기', () => setTag(t), 't']] });
+  });
+  const said = useRef<Blob>();
+  const mic = useRecorder((b) => ((said.current = b), void listen()), 10);
   return (
     <Check>
       <H>어느 소가<br /><em>평소와 다른가요?</em></H>
       <CowList to={(c) => `/f-s08s?cow=${c.cow_id}`} />
+      {AUDIO && <Btn v="s" onClick={mic.on ? mic.stop : () => (setFound(undefined), void mic.start())} disabled={busy}>{mic.on ? '■ 다 말했어요' : '🎙 귀표 끝 4자리 말하기'}</Btn>}
+      {(mic.on || busy) && <MicState on={mic.on} busy={busy} idle="" />}
+      <Err>{mic.micErr ?? err._ ?? err.audio}</Err>
       <Row>
         <Input label="귀표 끝 4자리" inputMode="numeric" maxLength={4} value={tag} onChange={(e) => (setTag(e.target.value), setFound(undefined))} />
-        <Btn v="s" onClick={find} disabled={tag.trim().length !== 4}>찾기</Btn>
+        <Btn v="s" onClick={() => find()} disabled={tag.trim().length !== 4}>찾기</Btn>
       </Row>
       {found && found.length === 0 && <Info tone="w">{tag}번 소가 목록에 없어요. 번호를 다시 확인하거나 소를 추가해 주세요.</Info>}
       {found && found.length > 1 && (
@@ -118,6 +137,14 @@ export function FS08S() {
   const cows = useCows().data?.items ?? [];
   const cow = cows.find((c) => String(c.cow_id) === cowId);
   const [text, setText] = useState(flow.check.observed ?? '');
+  // 마이크가 기본, 들은 말은 아래 글 칸에 넣어 고칠 수 있게. 못 알아들으면 글로 쓰기 (F-S02와 같은 녹음)
+  const said = useRef<Blob>();
+  const { submit: listen, err, busy } = useSend(async () => {
+    const t = await hear(said.current!);
+    if (t) setText(t);
+    else mic.setMicErr('잘 못 알아들었어요. 다시 말하거나 아래에 글로 써 주세요.');
+  });
+  const mic = useRecorder((b) => ((said.current = b), void listen()));
   const next = () => {
     flow.check.cowId = cowId ? Number(cowId) : null;
     flow.check.observed = text.trim() || undefined;
@@ -127,10 +154,19 @@ export function FS08S() {
     <Check>
       <H center>{cow ? cowName(cow, cows) + ' 소가' : '소가'}<br /><em>어떤 모습</em>인가요?</H>
       {cow && <P center>{cowDesc(cow)}</P>}
+      {AUDIO ? (
+        <>
+          <button type="button" className="mic" aria-label={mic.on ? '녹음 멈추기' : '녹음 시작'} aria-pressed={mic.on} onClick={mic.on ? mic.stop : () => void mic.start()} disabled={busy} />
+          <MicState on={mic.on} busy={busy} idle="마이크를 누르고 말씀하세요. 다 말하면 한 번 더 누르세요." />
+        </>
+      ) : (
+        <Info tone="w">이 화면에서는 녹음이 안 돼요. 글로 써 주세요.</Info>
+      )}
+      <Err>{mic.micErr ?? err._ ?? err.audio}</Err>
       <Input label="예: 사료를 안 먹고 침을 흘려. 오늘 아침부터 그래." rows={3} maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} />
       <Row>
         <Btn v="t" onClick={next}>건너뛰기</Btn>
-        <Btn onClick={next} disabled={!text.trim()}>다 말했어요</Btn>
+        <Btn onClick={next} disabled={!text.trim() || mic.on || busy}>다 말했어요</Btn>
       </Row>
     </Check>
   );
