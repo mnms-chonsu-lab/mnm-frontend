@@ -156,7 +156,8 @@ export function FS03() {
       <H center>이렇게 <em>적을까요?</em></H>
       {!d || d.items.length === 0 ? <NoDraft /> : (
         <>
-          <KV rows={[['날짜', '오늘 ›', false, '/f-s03e'], ...d.items.map((x, i): [string, string, boolean, string] => [x.category + (d.items.filter((y) => y.category === x.category).length > 1 ? ` ${i + 1}` : ''), itemText(x) + ' ›', false, '/f-s03e'])]} />
+          {/* 날짜는 기록일(오늘). 출생일은 고칠 곳이 없어 링크 없음 */}
+          <KV rows={[['날짜', '오늘 ›', false, '/f-s03e'], ...(d.report_fields?.birth_date ? [['태어난 날', kday(d.report_fields.birth_date)] as [string, string]] : []), ...d.items.map((x, i): [string, string, boolean, string] => [x.category + (d.items.filter((y) => y.category === x.category).length > 1 ? ` ${i + 1}` : ''), itemText(x) + ' ›', false, '/f-s03e'])]} />
           {d.items.some((x) => x.cow_tag4 && !x.cow_id) && <Info tone="w">내 소 목록에 없는 귀표 번호가 있어요. 고칠게요를 눌러 소를 골라 주세요.</Info>}
           {d.report_type && d.report_notice && (
             <Info tone="w">{d.report_type} 신고는 <b>{kday(d.report_notice.report_due)}까지</b>({dday(d.report_notice.d_day)}) 해야 해요. 저장하면 신고서 초안을 써 둘게요.</Info>
